@@ -18,6 +18,192 @@ const AdminContext = createContext();
 const AUTH_USER_KEY = "express_admin_user";
 const AUTH_ROLE_KEY = "express_admin_role";
 
+const normalizeStorageObjectPath = (value) => {
+  if (!value || typeof value !== "string") return null;
+
+  let path = value.trim();
+  try {
+    path = decodeURIComponent(path);
+  } catch {
+    // Keep original when URI decoding fails on malformed percent encodings.
+  }
+
+  path = path.trim();
+  if (!path) return null;
+
+  path = path.split("?")[0].split("#")[0];
+
+  const pathPrefixes = [
+    "/storage/v1/object/public/express-products/",
+    "/storage/v1/object/sign/express-products/",
+    "storage/v1/object/public/express-products/",
+    "storage/v1/object/sign/express-products/",
+    "public/express-products/",
+    "sign/express-products/",
+    "express-products/",
+  ];
+
+  for (const prefix of pathPrefixes) {
+    if (path.startsWith(prefix)) {
+      path = path.slice(prefix.length);
+      break;
+    }
+  }
+
+  path = path.replace(/^\/+/, "");
+
+  return path || null;
+};
+
+const extractProductImageUrls = (product) => {
+  const urls = [];
+
+  const addUrl = (value) => {
+    if (typeof value === "string" && value.trim()) {
+      urls.push(value.trim());
+    }
+  };
+
+  addUrl(product?.thumbnail);
+
+  if (Array.isArray(product?.thumbnails)) {
+    product.thumbnails.forEach((url) => addUrl(url));
+  } else if (typeof product?.thumbnails === "string") {
+    const raw = product.thumbnails.trim();
+    if (raw) {
+      try {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed)) {
+          parsed.forEach((url) => addUrl(url));
+        } else if (typeof parsed === "string") {
+          addUrl(parsed);
+        } else {
+          addUrl(raw);
+        }
+      } catch {
+        // Support Postgres array literal format: {"a","b"}
+        const isPgArray = raw.startsWith("{") && raw.endsWith("}");
+        if (isPgArray) {
+          const inner = raw.slice(1, -1).trim();
+          if (inner) {
+            inner
+              .split(",")
+              .map((item) => item.trim().replace(/^"|"$/g, ""))
+              .forEach((item) => addUrl(item));
+          }
+        } else {
+          addUrl(raw);
+        }
+      }
+    }
+  }
+
+  return Array.from(new Set(urls));
+};
+
+const buildStorageDeleteCandidates = (url) => {
+  if (!url || typeof url !== "string") return [];
+
+  const candidates = new Set();
+
+  const addCandidate = (value) => {
+    if (!value || typeof value !== "string") return;
+    const trimmed = value.trim();
+    if (!trimmed) return;
+
+    candidates.add(trimmed);
+
+    try {
+      const normalized = normalizeStorageObjectPath(trimmed);
+      if (normalized) candidates.add(normalized);
+    } catch {
+      // Ignore candidate normalization issues and continue with other candidates.
+    }
+  };
+
+  const rawNoQuery = url.split("?")[0].split("#")[0].trim();
+  addCandidate(rawNoQuery);
+
+  // Mirror Express-Store status cleanup style: split by bucket token.
+  if (rawNoQuery.includes("/express-products/")) {
+    const [, rawPath = ""] = rawNoQuery.split("/express-products/");
+    addCandidate(rawPath);
+  }
+
+  if (rawNoQuery.includes("express-products/")) {
+    const [, rawPath = ""] = rawNoQuery.split("express-products/");
+    addCandidate(rawPath);
+  }
+
+  if (/^https?:\/\//i.test(rawNoQuery)) {
+    try {
+      const pathname = new URL(rawNoQuery).pathname || "";
+      addCandidate(pathname);
+
+      if (pathname.includes("/express-products/")) {
+        const [, rawPath = ""] = pathname.split("/express-products/");
+        addCandidate(rawPath);
+      }
+    } catch {
+      // Keep other candidates when URL parsing fails.
+    }
+  }
+
+  addCandidate(getStoragePathFromUrl(rawNoQuery));
+
+  const expanded = new Set();
+  Array.from(candidates).forEach((candidate) => {
+    const clean = String(candidate).replace(/^\/+/, "").trim();
+    if (!clean || clean.includes("://")) return;
+
+    expanded.add(clean);
+
+    if (clean.startsWith("express-products/")) {
+      expanded.add(clean.slice("express-products/".length));
+    }
+
+    if (!clean.startsWith("products/")) {
+      expanded.add(`products/${clean}`);
+    }
+  });
+
+  return Array.from(expanded).filter(Boolean);
+};
+
+const getStoragePathFromUrl = (url) => {
+  if (!url || typeof url !== "string") return null;
+
+  const cleanUrl = url.split("?")[0];
+  const publicToken = "/storage/v1/object/public/express-products/";
+  const signedToken = "/storage/v1/object/sign/express-products/";
+
+  if (cleanUrl.includes(publicToken)) {
+    return normalizeStorageObjectPath(cleanUrl.split(publicToken)[1] || "");
+  }
+
+  if (cleanUrl.includes(signedToken)) {
+    return normalizeStorageObjectPath(cleanUrl.split(signedToken)[1] || "");
+  }
+
+  if (cleanUrl.startsWith("products/")) {
+    return normalizeStorageObjectPath(cleanUrl);
+  }
+
+  try {
+    const parsedUrl = new URL(cleanUrl);
+    const bucketPathToken = "/express-products/";
+    if (parsedUrl.pathname.includes(bucketPathToken)) {
+      return normalizeStorageObjectPath(
+        parsedUrl.pathname.split(bucketPathToken)[1] || "",
+      );
+    }
+  } catch {
+    return normalizeStorageObjectPath(cleanUrl);
+  }
+
+  return normalizeStorageObjectPath(cleanUrl);
+};
+
 export const AdminProvider = ({ children }) => {
   const [products, setProducts] = useState([]);
   const [categories, setCategories] = useState([]);
@@ -221,61 +407,59 @@ export const AdminProvider = ({ children }) => {
         if (ce) console.error("Comments fetch error:", ce);
       }
 
+      let resolvedProducts = productsRes.data || [];
       if (productsRes.error) {
-        console.error("Products fetch error:", productsRes.error);
-        throw productsRes.error;
-      }
-      if (categoriesRes.error) {
-        console.error("Categories fetch error:", categoriesRes.error);
-        throw categoriesRes.error;
-      }
-      if (ordersRes.error) {
-        console.error("Orders fetch error:", ordersRes.error);
-        throw ordersRes.error;
-      }
-      if (sellersRes.error) {
-        console.error("Sellers fetch error:", sellersRes.error);
-        throw sellersRes.error;
-      }
-      if (ticketsRes.error) {
-        console.error("Tickets fetch error:", ticketsRes.error);
-        throw ticketsRes.error;
-      }
-      if (usersRes.error) {
-        console.error("Users fetch error:", usersRes.error);
-        throw usersRes.error;
-      }
-      if (bannersRes.error) {
-        console.error("Banners fetch error:", bannersRes.error);
-        throw bannersRes.error;
-      }
-      if (couponsRes.error) {
-        console.error("Coupons fetch error:", couponsRes.error);
-        throw couponsRes.error;
-      }
-      if (adsRes.error) {
-        console.error("Ads fetch error:", adsRes.error);
-        throw adsRes.error;
-      }
-      if (payoutsRes.error) {
-        console.error("Payouts fetch error:", payoutsRes.error);
-        throw payoutsRes.error;
-      }
-      if (settingsRes.error) {
-        console.error("Settings fetch error:", settingsRes.error);
-        throw settingsRes.error;
+        console.warn(
+          "Products fetch failed with strict select, retrying with fallback:",
+          productsRes.error,
+        );
+
+        const { data: fallbackProducts, error: fallbackProductsError } =
+          await supabase
+            .from("express_products")
+            .select("*")
+            .order("created_at", { ascending: false })
+            .limit(200);
+
+        if (fallbackProductsError) {
+          console.error(
+            "Products fallback fetch error:",
+            fallbackProductsError,
+          );
+          throw fallbackProductsError;
+        }
+
+        resolvedProducts = fallbackProducts || [];
       }
 
-      setProducts(productsRes.data || []);
-      setCategories(categoriesRes.data || []);
-      setOrders(ordersRes.data || []);
-      setSellers(sellersRes.data || []);
-      setTickets(ticketsRes.data || []);
-      setUsers(usersRes.data || []);
-      setBanners(bannersRes.data || []);
-      setCoupons(couponsRes.data || []);
-      setAds(adsRes.data || []);
-      setPayouts(payoutsRes.data || []);
+      if (categoriesRes.error)
+        console.warn("Categories fetch error:", categoriesRes.error);
+      if (ordersRes.error) console.warn("Orders fetch error:", ordersRes.error);
+      if (sellersRes.error)
+        console.warn("Sellers fetch error:", sellersRes.error);
+      if (ticketsRes.error)
+        console.warn("Tickets fetch error:", ticketsRes.error);
+      if (usersRes.error) console.warn("Users fetch error:", usersRes.error);
+      if (bannersRes.error)
+        console.warn("Banners fetch error:", bannersRes.error);
+      if (couponsRes.error)
+        console.warn("Coupons fetch error:", couponsRes.error);
+      if (adsRes.error) console.warn("Ads fetch error:", adsRes.error);
+      if (payoutsRes.error)
+        console.warn("Payouts fetch error:", payoutsRes.error);
+      if (settingsRes.error)
+        console.warn("Settings fetch error:", settingsRes.error);
+
+      setProducts(resolvedProducts);
+      setCategories(categoriesRes.error ? [] : categoriesRes.data || []);
+      setOrders(ordersRes.error ? [] : ordersRes.data || []);
+      setSellers(sellersRes.error ? [] : sellersRes.data || []);
+      setTickets(ticketsRes.error ? [] : ticketsRes.data || []);
+      setUsers(usersRes.error ? [] : usersRes.data || []);
+      setBanners(bannersRes.error ? [] : bannersRes.data || []);
+      setCoupons(couponsRes.error ? [] : couponsRes.data || []);
+      setAds(adsRes.error ? [] : adsRes.data || []);
+      setPayouts(payoutsRes.error ? [] : payoutsRes.data || []);
       setReviews(revsData || []);
       setComments(commsData || []);
       if (transactionPaymentsRes.error) {
@@ -288,7 +472,7 @@ export const AdminProvider = ({ children }) => {
       }
 
       const settingsMap = {};
-      (settingsRes.data || []).forEach((s) => {
+      (settingsRes.error ? [] : settingsRes.data || []).forEach((s) => {
         settingsMap[s.key] = s.value;
       });
       setSettings(settingsMap);
@@ -580,18 +764,73 @@ export const AdminProvider = ({ children }) => {
     );
   }, []);
 
-  const deleteProduct = useCallback(async (productId) => {
-    if (!supabase) return;
-    const { error: deleteError } = await supabase
-      .from("express_products")
-      .delete()
-      .eq("id", productId);
-    if (deleteError) {
-      Alert.alert("Unable to delete product", deleteError.message);
-      return;
-    }
-    setProducts((prev) => prev.filter((p) => p.id !== productId));
-  }, []);
+  const deleteProduct = useCallback(
+    async (productId) => {
+      if (!supabase) return;
+
+      let targetProduct = products.find((p) => p.id === productId) || null;
+
+      if (!targetProduct) {
+        const { data: productData, error: fetchError } = await supabase
+          .from("express_products")
+          .select("id, thumbnail, thumbnails")
+          .eq("id", productId)
+          .maybeSingle();
+
+        if (fetchError) {
+          Alert.alert("Unable to delete product", fetchError.message);
+          return;
+        }
+
+        targetProduct = productData;
+      }
+
+      const rawUrls = extractProductImageUrls(targetProduct);
+
+      const objectPaths = Array.from(
+        new Set(rawUrls.flatMap((url) => buildStorageDeleteCandidates(url))),
+      );
+
+      if (rawUrls.length > 0 && objectPaths.length === 0) {
+        Alert.alert(
+          "Unable to delete product images",
+          "Image paths could not be resolved from this product record. Product deletion was cancelled to prevent orphaned files.",
+        );
+        return;
+      }
+
+      if (objectPaths.length > 0) {
+        const chunkSize = 100;
+        for (let i = 0; i < objectPaths.length; i += chunkSize) {
+          const chunk = objectPaths.slice(i, i + chunkSize);
+          const { error: storageDeleteError } = await supabase.storage
+            .from("express-products")
+            .remove(chunk);
+
+          if (storageDeleteError) {
+            Alert.alert(
+              "Unable to delete product images",
+              storageDeleteError.message,
+            );
+            return;
+          }
+        }
+      }
+
+      const { error: deleteError } = await supabase
+        .from("express_products")
+        .delete()
+        .eq("id", productId);
+
+      if (deleteError) {
+        Alert.alert("Unable to delete product", deleteError.message);
+        return;
+      }
+
+      setProducts((prev) => prev.filter((p) => p.id !== productId));
+    },
+    [products],
+  );
 
   const featureProduct = useCallback(
     async (productId) => {

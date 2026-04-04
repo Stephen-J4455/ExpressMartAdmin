@@ -6,6 +6,7 @@ import { colors } from "../theme/colors";
 
 const NAV_ITEMS = [
   { name: "Overview", icon: "home-outline", iconFocused: "home" },
+  { name: "Products", icon: "cube-outline", iconFocused: "cube" },
   { name: "Orders", icon: "receipt-outline", iconFocused: "receipt" },
   { name: "Customers", icon: "person-outline", iconFocused: "person" },
   { name: "Sellers", icon: "people-outline", iconFocused: "people" },
@@ -21,9 +22,18 @@ const NAV_ITEMS = [
   { name: "Settings", icon: "settings-outline", iconFocused: "settings" },
 ];
 
-export const WebSidebar = ({ state, navigation, sidebarWidth }) => {
+export const WebSidebar = ({
+  state,
+  navigation,
+  sidebarWidth,
+  pendingModerationCount = 0,
+}) => {
   const insets = useSafeAreaInsets();
   const activeRoute = state?.routes?.[state.index]?.name;
+  const moderationBadgeText =
+    pendingModerationCount > 99
+      ? "99+"
+      : String(Math.max(0, pendingModerationCount));
 
   return (
     <View
@@ -82,6 +92,13 @@ export const WebSidebar = ({ state, navigation, sidebarWidth }) => {
                   >
                     {item.name}
                   </Text>
+                )}
+                {item.name === "Moderation" && pendingModerationCount > 0 && (
+                  <View style={styles.navBadge}>
+                    <Text style={styles.navBadgeText}>
+                      {moderationBadgeText}
+                    </Text>
+                  </View>
                 )}
               </View>
               {isActive && <View style={styles.activeIndicator} />}
@@ -153,6 +170,22 @@ const styles = StyleSheet.create({
   navLabelActive: {
     color: colors.primary,
     fontWeight: "800",
+  },
+  navBadge: {
+    marginLeft: "auto",
+    minWidth: 18,
+    height: 18,
+    borderRadius: 9,
+    paddingHorizontal: 5,
+    backgroundColor: colors.danger,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  navBadgeText: {
+    color: "#fff",
+    fontSize: 10,
+    fontWeight: "800",
+    lineHeight: 12,
   },
   activeIndicator: {
     position: "absolute",

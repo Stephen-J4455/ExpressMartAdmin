@@ -21,7 +21,7 @@ import {
 } from "react-native-safe-area-context";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { supabase } from "./supabase";
-import { AdminProvider } from "./src/context/AdminContext";
+import { AdminProvider, useAdmin } from "./src/context/AdminContext";
 import { ToastProvider } from "./src/context/ToastContext";
 import { NotificationProvider } from "./src/context/NotificationContext";
 import { colors } from "./src/theme/colors";
@@ -39,6 +39,7 @@ import { OrdersScreen } from "./src/screens/OrdersScreen";
 import { CustomersScreen } from "./src/screens/CustomersScreen";
 import { FinanceScreen } from "./src/screens/FinanceScreen";
 import { MarketingScreen } from "./src/screens/MarketingScreen";
+import { CatalogScreen } from "./src/screens/CatalogScreen";
 // password resets handled on the web; mobile screen no longer used
 import ForgotPasswordScreen from "./src/screens/ForgotPasswordScreen";
 import { UpdateManagerScreen } from "./src/screens/UpdateManagerScreen";
@@ -55,6 +56,7 @@ const linking = {
       AdminTabs: {
         screens: {
           Overview: "overview",
+          Products: "products",
           Orders: "orders",
           Customers: "customers",
           Sellers: "sellers",
@@ -138,6 +140,25 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     paddingVertical: 8,
+  },
+  tabBadge: {
+    position: "absolute",
+    top: 4,
+    right: "26%",
+    minWidth: 16,
+    height: 16,
+    borderRadius: 8,
+    paddingHorizontal: 4,
+    backgroundColor: colors.danger,
+    alignItems: "center",
+    justifyContent: "center",
+    zIndex: 2,
+  },
+  tabBadgeText: {
+    color: "#fff",
+    fontSize: 10,
+    fontWeight: "800",
+    lineHeight: 12,
   },
   badge: {
     backgroundColor: colors.danger,
@@ -232,6 +253,8 @@ const styles = StyleSheet.create({
 
 const AdminTabs = ({ onLogout }) => {
   const { isWide, sidebarWidth } = useResponsive();
+  const { metrics } = useAdmin();
+  const pendingModerationCount = Number(metrics?.pendingProducts || 0);
 
   return (
     <Tab.Navigator
@@ -247,9 +270,16 @@ const AdminTabs = ({ onLogout }) => {
       }}
       tabBar={(props) =>
         isWide ? (
-          <WebSidebar {...props} sidebarWidth={sidebarWidth} />
+          <WebSidebar
+            {...props}
+            sidebarWidth={sidebarWidth}
+            pendingModerationCount={pendingModerationCount}
+          />
         ) : (
-          <DefaultAdminTabBar {...props} />
+          <DefaultAdminTabBar
+            {...props}
+            pendingModerationCount={pendingModerationCount}
+          />
         )
       }
     >
@@ -260,6 +290,16 @@ const AdminTabs = ({ onLogout }) => {
           tabBarLabel: "Overview",
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="home-outline" size={size} color={color} />
+          ),
+        }}
+      />
+      <Tab.Screen
+        name="Products"
+        component={CatalogScreen}
+        options={{
+          tabBarLabel: "Products",
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="cube-outline" size={size} color={color} />
           ),
         }}
       />
@@ -376,6 +416,7 @@ const PRIMARY_TABS = ["Overview", "Moderation", "Sellers", "Finance"];
 
 /** Routes accessible via the "More" sheet */
 const OVERFLOW_TABS = [
+  "Products",
   "Orders",
   "Customers",
   "Marketing",
@@ -387,6 +428,7 @@ const OVERFLOW_TABS = [
 
 const ADMIN_ICONS = {
   Overview: "home-outline",
+  Products: "cube-outline",
   Orders: "receipt-outline",
   Customers: "person-outline",
   Sellers: "people-outline",
@@ -401,6 +443,7 @@ const ADMIN_ICONS = {
 
 const ADMIN_ICONS_FILLED = {
   Overview: "home",
+  Products: "cube",
   Orders: "receipt",
   Customers: "person",
   Sellers: "people",
@@ -413,9 +456,18 @@ const ADMIN_ICONS_FILLED = {
   Updates: "cloud-upload",
 };
 
-const DefaultAdminTabBar = ({ state, descriptors, navigation }) => {
+const DefaultAdminTabBar = ({
+  state,
+  descriptors,
+  navigation,
+  pendingModerationCount = 0,
+}) => {
   const insets = useSafeAreaInsets();
   const [moreOpen, setMoreOpen] = React.useState(false);
+  const moderationBadgeText =
+    pendingModerationCount > 99
+      ? "99+"
+      : String(Math.max(0, pendingModerationCount));
 
   const activeRoute = state.routes[state.index]?.name;
   const isOverflowActive = OVERFLOW_TABS.includes(activeRoute);
@@ -460,6 +512,13 @@ const DefaultAdminTabBar = ({ state, descriptors, navigation }) => {
                 onPress={() => navigateTo(route.key, route.name)}
                 style={styles.tabItem}
               >
+                {route.name === "Moderation" && pendingModerationCount > 0 && (
+                  <View style={styles.tabBadge}>
+                    <Text style={styles.tabBadgeText}>
+                      {moderationBadgeText}
+                    </Text>
+                  </View>
+                )}
                 <Ionicons
                   name={
                     isFocused

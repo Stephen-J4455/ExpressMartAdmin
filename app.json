@@ -17,7 +17,9 @@
       "bundleIdentifier": "com.stephenj3.ExpressMartAdmin",
       "googleServicesFile": "./GoogleService-Info.plist",
       "infoPlist": {
-        "UIBackgroundModes": ["remote-notification"]
+        "UIBackgroundModes": [
+          "remote-notification"
+        ]
       }
     },
     "android": {
@@ -45,7 +47,9 @@
       "expo-web-browser"
     ],
     "extra": {
-      "eas": {},
+      "eas": {
+        "projectId": "61952e80-1f36-4b9a-9b0a-80883844379e"
+      },
       "firebaseApiKey": "AIzaSyBqrV1yGWsLj17JXFwfIWRP-sqX6hp8vLk",
       "firebaseAuthDomain": "expressmart-7d550.firebaseapp.com",
       "firebaseProjectId": "expressmart-7d550",

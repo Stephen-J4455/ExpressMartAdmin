@@ -1,0 +1,23 @@
+export const colors = {
+  primary: "#2563eb",
+  secondary: "#1e40af",
+  accent: "#3b82f6",
+  dark: "#1e293b",
+  light: "#f8fafc",
+  muted: "#64748b",
+  success: "#10b981",
+  info: "#06b6d4",
+  warning: "#f59e0b",
+  danger: "#ef4444",
+  surface: "#ffffff",
+  border: "#e2e8f0",
+  // Additional colors for gradients and accents
+  primaryLight: "#dbeafe",
+  primaryDark: "#1d4ed8",
+  successLight: "#d1fae5",
+  warningLight: "#fef3c7",
+  dangerLight: "#fee2e2",
+  infoLight: "#cffafe",
+  gradientStart: "#3b82f6",
+  gradientEnd: "#1d4ed8",
+};

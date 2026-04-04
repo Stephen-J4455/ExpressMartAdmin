@@ -7,7 +7,6 @@
     "icon": "./assets/express.png",
     "userInterfaceStyle": "light",
     "scheme": "expressmartadmin",
-    "newArchEnabled": true,
     "splash": {
       "image": "./assets/express.png",
       "resizeMode": "contain",
@@ -42,7 +41,8 @@
           "androidMode": "default",
           "androidCollapsedTitle": "ExpressMart Admin"
         }
-      ]
+      ],
+      "expo-web-browser"
     ],
     "extra": {
       "eas": {},

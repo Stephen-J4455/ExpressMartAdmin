@@ -12,6 +12,7 @@ import {
   View,
   ActivityIndicator,
   Alert,
+  Platform,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
@@ -34,10 +35,26 @@ const fmtDate = (iso) => {
 };
 
 const ROLE_FILTERS = ["all", "customer", "seller", "admin"];
+const CUSTOMER_LIKE_ROLES = ["customer", "user"];
+
+const normalizeRole = (role) => {
+  const normalized = String(role || "")
+    .trim()
+    .toLowerCase();
+  return normalized || "customer";
+};
 
 // ─── Customer Detail Modal ────────────────────────────────────────────────────
-const CustomerModal = ({ user, orders, onClose }) => {
+const CustomerModal = ({
+  user,
+  orders,
+  onClose,
+  onPromoteToSeller,
+  onDemoteToCustomer,
+  roleUpdating = false,
+}) => {
   if (!user) return null;
+  const currentRole = normalizeRole(user.role);
 
   const userOrders = orders.filter(
     (o) =>
@@ -83,7 +100,7 @@ const CustomerModal = ({ user, orders, onClose }) => {
 
           <ScrollView
             style={{ flex: 1 }}
-            contentContainerStyle={{ padding: 20 }}
+            contentContainerStyle={{ padding: 20, flexGrow: 1 }}
           >
             {/* Stats */}
             <View style={styles.modalStats}>
@@ -99,11 +116,69 @@ const CustomerModal = ({ user, orders, onClose }) => {
               </View>
               <View style={styles.modalStatBox}>
                 <Text style={[styles.modalStatVal, { color: colors.info }]}>
-                  {user.role || "customer"}
+                  {currentRole}
                 </Text>
                 <Text style={styles.modalStatLabel}>Role</Text>
               </View>
             </View>
+
+            {CUSTOMER_LIKE_ROLES.includes(currentRole) && (
+              <View style={styles.roleSwitchBlock}>
+                <Text style={styles.sectionTitle}>Promote to Seller</Text>
+                <Text style={styles.roleSwitchHint}>
+                  This will convert the account to seller and send a password
+                  setup link so they can log in to the seller app (for Google
+                  sign-up users too).
+                </Text>
+                <View style={styles.roleSwitchRow}>
+                  <TouchableOpacity
+                    style={[
+                      styles.roleSwitchButton,
+                      roleUpdating && styles.roleSwitchButtonDisabled,
+                    ]}
+                    disabled={roleUpdating}
+                    onPress={() => onPromoteToSeller?.(user)}
+                  >
+                    {roleUpdating ? (
+                      <ActivityIndicator size="small" color="#fff" />
+                    ) : (
+                      <Text style={styles.roleSwitchButtonText}>
+                        Promote & Send Password Link
+                      </Text>
+                    )}
+                  </TouchableOpacity>
+                </View>
+              </View>
+            )}
+
+            {currentRole === "seller" && (
+              <View style={styles.roleSwitchBlock}>
+                <Text style={styles.sectionTitle}>Revert to Customer</Text>
+                <Text style={styles.roleSwitchHint}>
+                  This removes seller access and changes the account back to
+                  customer.
+                </Text>
+                <View style={styles.roleSwitchRow}>
+                  <TouchableOpacity
+                    style={[
+                      styles.roleSwitchButton,
+                      styles.roleSwitchButtonDanger,
+                      roleUpdating && styles.roleSwitchButtonDisabled,
+                    ]}
+                    disabled={roleUpdating}
+                    onPress={() => onDemoteToCustomer?.(user)}
+                  >
+                    {roleUpdating ? (
+                      <ActivityIndicator size="small" color="#fff" />
+                    ) : (
+                      <Text style={styles.roleSwitchButtonText}>
+                        Change to Customer
+                      </Text>
+                    )}
+                  </TouchableOpacity>
+                </View>
+              </View>
+            )}
 
             {/* Details */}
             {[
@@ -171,8 +246,9 @@ const UserCard = ({ user, orderCount, totalSpend, onPress }) => {
     {
       admin: colors.danger,
       seller: colors.primary,
+      user: colors.success,
       customer: colors.success,
-    }[user.role] || colors.muted;
+    }[normalizeRole(user.role)] || colors.muted;
 
   return (
     <Pressable style={styles.card} onPress={() => onPress(user)}>
@@ -196,7 +272,7 @@ const UserCard = ({ user, orderCount, totalSpend, onPress }) => {
               style={[styles.roleChip, { backgroundColor: roleColor + "20" }]}
             >
               <Text style={[styles.roleChipText, { color: roleColor }]}>
-                {user.role || "customer"}
+                {normalizeRole(user.role)}
               </Text>
             </View>
           </View>
@@ -357,11 +433,20 @@ const BroadcastModal = ({ visible, onClose }) => {
 
 // ─── Main Screen ─────────────────────────────────────────────────────────────
 export const CustomersScreen = () => {
-  const { users, orders, loading, refresh } = useAdmin();
+  const {
+    users,
+    orders,
+    loading,
+    refresh,
+    promoteCustomerToSeller,
+    updateUserRole,
+  } = useAdmin();
+  const toast = useToast();
   const [query, setQuery] = useState("");
   const [roleFilter, setRoleFilter] = useState("all");
   const [selectedUser, setSelectedUser] = useState(null);
   const [showBroadcast, setShowBroadcast] = useState(false);
+  const [roleUpdating, setRoleUpdating] = useState(false);
   const { cardColumns } = useResponsive();
 
   // Build order stats per user
@@ -379,8 +464,13 @@ export const CustomersScreen = () => {
 
   const filtered = useMemo(() => {
     let list = users;
-    if (roleFilter !== "all")
-      list = list.filter((u) => (u.role || "customer") === roleFilter);
+    if (roleFilter !== "all") {
+      list = list.filter((u) => {
+        const role = normalizeRole(u.role);
+        if (roleFilter === "customer") return CUSTOMER_LIKE_ROLES.includes(role);
+        return role === roleFilter;
+      });
+    }
     if (query.trim()) {
       const q = query.toLowerCase();
       list = list.filter(
@@ -394,9 +484,75 @@ export const CustomersScreen = () => {
   }, [users, roleFilter, query]);
 
   const customerCount = users.filter(
-    (u) => !u.role || u.role === "customer",
+    (u) => CUSTOMER_LIKE_ROLES.includes(normalizeRole(u.role)),
   ).length;
-  const sellerCount = users.filter((u) => u.role === "seller").length;
+  const sellerCount = users.filter((u) => normalizeRole(u.role) === "seller")
+    .length;
+
+  const handlePromoteToSeller = async (user) => {
+    if (!user?.id) return;
+    if (!CUSTOMER_LIKE_ROLES.includes(normalizeRole(user.role))) {
+      toast.warning("Not allowed", "Only customers can be promoted.");
+      return;
+    }
+    try {
+      setRoleUpdating(true);
+      await promoteCustomerToSeller({
+        userId: user.id,
+        email: user.email,
+        fullName: user.full_name,
+        phone: user.phone,
+      });
+      setSelectedUser((prev) => (prev ? { ...prev, role: "seller" } : prev));
+      toast.success(
+        "Promoted",
+        `${user.email} is now seller. Password setup email sent.`,
+      );
+    } catch (error) {
+      toast.error("Promotion failed", error.message || "Could not promote user");
+    } finally {
+      setRoleUpdating(false);
+    }
+  };
+
+  const handleDemoteToCustomer = (user) => {
+    if (!user?.id) return;
+    if (normalizeRole(user.role) !== "seller") {
+      toast.warning("Not allowed", "Only sellers can be changed to customer.");
+      return;
+    }
+
+    const runDemotion = async () => {
+      try {
+        setRoleUpdating(true);
+        await updateUserRole(user.id, "customer");
+        setSelectedUser((prev) => (prev ? { ...prev, role: "customer" } : prev));
+        toast.success("Role updated", `${user.email} is now customer.`);
+      } catch (error) {
+        toast.error("Update failed", error.message || "Could not change role");
+      } finally {
+        setRoleUpdating(false);
+      }
+    };
+
+    if (Platform.OS === "web") {
+      const confirmed = globalThis.confirm(
+        `${user.email} will lose seller access. Continue?`,
+      );
+      if (!confirmed) return;
+      runDemotion();
+      return;
+    }
+
+    Alert.alert("Change role to customer?", `${user.email} will lose seller access.`, [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: "Change Role",
+        style: "destructive",
+        onPress: runDemotion,
+      },
+    ]);
+  };
 
   return (
     <View style={styles.container}>
@@ -541,6 +697,9 @@ export const CustomersScreen = () => {
         user={selectedUser}
         orders={orders}
         onClose={() => setSelectedUser(null)}
+        onPromoteToSeller={handlePromoteToSeller}
+        onDemoteToCustomer={handleDemoteToCustomer}
+        roleUpdating={roleUpdating}
       />
 
       <BroadcastModal
@@ -750,6 +909,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#fff",
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
+    minHeight: "60%",
     maxHeight: "85%",
     overflow: "hidden",
   },
@@ -802,6 +962,45 @@ const styles = StyleSheet.create({
   miniOrderDate: { fontSize: 11, color: colors.muted },
   miniOrderTotal: { fontSize: 13, fontWeight: "700", color: colors.dark },
   miniOrderStatus: { fontSize: 11, fontWeight: "600" },
+  roleSwitchBlock: {
+    marginTop: 16,
+    padding: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: "#F8FAFC",
+  },
+  roleSwitchHint: {
+    marginTop: -2,
+    marginBottom: 10,
+    color: colors.muted,
+    fontSize: 12,
+  },
+  roleSwitchRow: {
+    flexDirection: "row",
+    gap: 8,
+  },
+  roleSwitchButton: {
+    flex: 1,
+    backgroundColor: colors.primary,
+    borderRadius: 10,
+    minHeight: 42,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 10,
+  },
+  roleSwitchButtonDanger: {
+    backgroundColor: colors.danger,
+  },
+  roleSwitchButtonDisabled: {
+    opacity: 0.65,
+  },
+  roleSwitchButtonText: {
+    color: "#fff",
+    fontWeight: "700",
+    fontSize: 13,
+    textTransform: "capitalize",
+  },
   // Broadcast Modal
   broadcastModal: {
     backgroundColor: "#fff",

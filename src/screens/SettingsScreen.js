@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   FlatList,
   Switch,
@@ -41,6 +41,23 @@ export const SettingsScreen = () => {
     settings.flash_sale_enabled === "true" ||
       settings.flash_sale_enabled === true,
   );
+  const [redisProductsCacheEnabled, setRedisProductsCacheEnabled] = useState(
+    settings.redis_products_cache_enabled === "true" ||
+      settings.redis_products_cache_enabled === true,
+  );
+
+  useEffect(() => {
+    setServiceFeePercentage(String(settings.service_fee_percentage || "5"));
+    setDefaultCommissionRate(String(settings.default_commission_rate || "0"));
+    setFlashSaleEnabled(
+      settings.flash_sale_enabled === "true" ||
+        settings.flash_sale_enabled === true,
+    );
+    setRedisProductsCacheEnabled(
+      settings.redis_products_cache_enabled === "true" ||
+        settings.redis_products_cache_enabled === true,
+    );
+  }, [settings]);
 
   const handleSave = async () => {
     setIsSaving(true);
@@ -67,6 +84,10 @@ export const SettingsScreen = () => {
         updateSetting("service_fee_percentage", serviceFeePercentage),
         updateSetting("default_commission_rate", defaultCommissionRate),
         updateSetting("flash_sale_enabled", String(flashSaleEnabled)),
+        updateSetting(
+          "redis_products_cache_enabled",
+          String(redisProductsCacheEnabled),
+        ),
       ]);
       toast.success("Saved", "Settings saved successfully");
     } catch (error) {
@@ -210,6 +231,28 @@ export const SettingsScreen = () => {
               <Switch
                 value={flashSaleEnabled}
                 onValueChange={setFlashSaleEnabled}
+                trackColor={{ true: colors.primary, false: colors.border }}
+                thumbColor="#fff"
+              />
+            </View>
+          </View>
+
+          <View style={styles.section}>
+            <View style={styles.sectionHeader}>
+              <Ionicons name="server-outline" size={20} color={colors.info} />
+              <Text style={styles.sectionTitle}>Product Cache</Text>
+            </View>
+            <View style={styles.switchRow}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.label}>Enable Redis Product Cache</Text>
+                <Text style={styles.hint}>
+                  Uses the cached-products Edge Function with Redis for product
+                  list reads.
+                </Text>
+              </View>
+              <Switch
+                value={redisProductsCacheEnabled}
+                onValueChange={setRedisProductsCacheEnabled}
                 trackColor={{ true: colors.primary, false: colors.border }}
                 thumbColor="#fff"
               />

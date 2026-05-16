@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   FlatList,
   Modal,
@@ -13,6 +13,7 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
+import ColorPicker from "react-native-wheel-color-picker";
 import { useAdmin } from "../context/AdminContext";
 import { useToast } from "../context/ToastContext";
 import { colors } from "../theme/colors";
@@ -238,22 +239,95 @@ const CouponModal = ({
 
 // ─── Category Modal ───────────────────────────────────────────────────────────
 const COMMON_ICONS = [
+  "grid-outline",
+  "apps-outline",
   "shirt-outline",
   "restaurant-outline",
+  "fast-food-outline",
+  "nutrition-outline",
   "phone-portrait-outline",
-  "home-outline",
-  "sparkles-outline",
-  "football-outline",
-  "book-outline",
-  "car-outline",
-  "medical-outline",
-  "paw-outline",
-  "musical-notes-outline",
   "laptop-outline",
+  "desktop-outline",
+  "game-controller-outline",
+  "headset-outline",
+  "home-outline",
+  "bed-outline",
+  "build-outline",
+  "hammer-outline",
+  "sparkles-outline",
+  "rose-outline",
+  "color-palette-outline",
+  "football-outline",
+  "barbell-outline",
+  "book-outline",
+  "school-outline",
+  "car-outline",
+  "car-sport-outline",
+  "medical-outline",
+  "bandage-outline",
+  "paw-outline",
+  "leaf-outline",
+  "flower-outline",
+  "musical-notes-outline",
   "bag-outline",
+  "cart-outline",
+  "gift-outline",
+  "watch-outline",
+  "diamond-outline",
+  "hardware-chip-outline",
+  "flash-outline",
+  "wine-outline",
+  "cafe-outline",
+  "snow-outline",
+  "sunny-outline",
+  "umbrella-outline",
+  "briefcase-outline",
+  "construct-outline",
+  "airplane-outline",
+  "boat-outline",
+  "planet-outline",
+  "library-outline",
+  "newspaper-outline",
+  "tablet-portrait-outline",
+  "tv-outline",
   "bicycle-outline",
   "camera-outline",
-  "gift-outline",
+];
+
+const COMMON_COLORS = [
+  colors.primary,
+  colors.success,
+  colors.warning,
+  colors.danger,
+  colors.info,
+  "#8B5CF6",
+  "#EC4899",
+  "#F97316",
+  "#06B6D4",
+  "#84CC16",
+  "#22C55E",
+  "#14B8A6",
+  "#0EA5E9",
+  "#3B82F6",
+  "#6366F1",
+  "#A855F7",
+  "#D946EF",
+  "#E11D48",
+  "#F43F5E",
+  "#EF4444",
+  "#F59E0B",
+  "#EAB308",
+  "#10B981",
+  "#64748B",
+  "#334155",
+  "#111827",
+  "#7C2D12",
+  "#365314",
+  "#14532D",
+  "#1E3A8A",
+  "#312E81",
+  "#581C87",
+  "#881337",
 ];
 
 const CategoryModal = ({
@@ -267,9 +341,20 @@ const CategoryModal = ({
   const [name, setName] = useState(category?.name || "");
   const [icon, setIcon] = useState(category?.icon || "grid-outline");
   const [catColor, setCatColor] = useState(category?.color || colors.primary);
+  const [customColor, setCustomColor] = useState(
+    category?.color || colors.primary,
+  );
   const [saving, setSaving] = useState(false);
   const toast = useToast();
   const isEdit = !!category;
+
+  useEffect(() => {
+    setName(category?.name || "");
+    setIcon(category?.icon || "grid-outline");
+    const nextColor = category?.color || colors.primary;
+    setCatColor(nextColor);
+    setCustomColor(nextColor);
+  }, [category, visible]);
 
   const handleSave = async () => {
     if (!name.trim()) {
@@ -353,16 +438,7 @@ const CategoryModal = ({
 
             <Text style={styles.fieldLabel}>Color</Text>
             <View style={styles.colorRow}>
-              {[
-                colors.primary,
-                colors.success,
-                colors.warning,
-                colors.danger,
-                colors.info,
-                "#8B5CF6",
-                "#EC4899",
-                "#F97316",
-              ].map((c) => (
+              {COMMON_COLORS.map((c) => (
                 <TouchableOpacity
                   key={c}
                   style={[
@@ -373,6 +449,47 @@ const CategoryModal = ({
                   onPress={() => setCatColor(c)}
                 />
               ))}
+            </View>
+
+            <Text style={styles.fieldLabel}>Color Wheel</Text>
+            <View style={styles.colorWheelWrap}>
+              <ColorPicker
+                color={customColor}
+                thumbSize={24}
+                sliderSize={24}
+                noSnap
+                row={false}
+                swatches={false}
+                onColorChangeComplete={(pickedColor) => {
+                  setCustomColor(pickedColor);
+                  setCatColor(pickedColor);
+                }}
+              />
+            </View>
+
+            <TextInput
+              style={styles.input}
+              value={customColor}
+              onChangeText={(text) => {
+                setCustomColor(text);
+                if (/^#[0-9A-Fa-f]{6}$/.test(text)) {
+                  setCatColor(text);
+                }
+              }}
+              placeholder="#4F46E5"
+              autoCapitalize="characters"
+              placeholderTextColor={colors.muted}
+            />
+            <View style={styles.selectedColorRow}>
+              <View
+                style={[
+                  styles.selectedColorPreview,
+                  { backgroundColor: catColor || colors.primary },
+                ]}
+              />
+              <Text style={styles.selectedColorText}>
+                Selected: {catColor?.toUpperCase?.() || colors.primary}
+              </Text>
             </View>
 
             <TouchableOpacity
@@ -392,9 +509,13 @@ const CategoryModal = ({
             {isEdit && (
               <TouchableOpacity
                 style={styles.deleteBtn}
-                onPress={() => {
-                  onDelete(category.id);
-                  onClose();
+                onPress={async () => {
+                  try {
+                    await onDelete(category.id);
+                    onClose();
+                  } catch (err) {
+                    toast.error("Error", err.message);
+                  }
                 }}
               >
                 <Ionicons
@@ -456,8 +577,13 @@ export const MarketingScreen = () => {
   };
 
   const handleDeleteCategory = async (id) => {
-    await deleteCategory(id);
-    toast.success("Deleted", "Category deleted");
+    try {
+      await deleteCategory(id);
+      toast.success("Deleted", "Category deleted");
+    } catch (err) {
+      toast.error("Error", err.message);
+      throw err;
+    }
   };
 
   return (
@@ -1037,6 +1163,31 @@ const styles = StyleSheet.create({
   colorRow: { flexDirection: "row", gap: 10, flexWrap: "wrap" },
   colorSwatch: { width: 32, height: 32, borderRadius: 16 },
   colorSwatchActive: { borderWidth: 3, borderColor: colors.dark },
+  colorWheelWrap: {
+    height: 240,
+    marginTop: 8,
+    marginBottom: 12,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: colors.border,
+    overflow: "hidden",
+    backgroundColor: "#fff",
+    justifyContent: "center",
+  },
+  selectedColorRow: {
+    marginTop: 10,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  selectedColorPreview: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  selectedColorText: { fontSize: 12, color: colors.muted, fontWeight: "600" },
   empty: { alignItems: "center", paddingTop: 60 },
   emptyText: { marginTop: 12, color: colors.muted, fontSize: 15 },
 });

@@ -17,6 +17,11 @@ const NAV_ITEMS = [
     icon: "shield-checkmark-outline",
     iconFocused: "shield-checkmark",
   },
+  {
+    name: "Reviews",
+    icon: "chatbox-ellipses-outline",
+    iconFocused: "chatbox-ellipses",
+  },
   { name: "Ads", icon: "megaphone-outline", iconFocused: "megaphone" },
   { name: "Support", icon: "help-circle-outline", iconFocused: "help-circle" },
   { name: "Settings", icon: "settings-outline", iconFocused: "settings" },

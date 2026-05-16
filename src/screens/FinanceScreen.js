@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   FlatList,
   Modal,
@@ -13,6 +13,8 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
+import { LineChart } from "react-native-gifted-charts";
+import Svg, { Circle, Path } from "react-native-svg";
 import { useAdmin } from "../context/AdminContext";
 import { useToast } from "../context/ToastContext";
 import { colors } from "../theme/colors";
@@ -40,6 +42,74 @@ const PAYOUT_STATUS_COLORS = {
   pending: colors.warning,
   completed: colors.success,
   rejected: colors.danger,
+};
+
+const polarToCartesian = (cx, cy, r, angleDeg) => {
+  const angleRad = ((angleDeg - 90) * Math.PI) / 180;
+  return {
+    x: cx + r * Math.cos(angleRad),
+    y: cy + r * Math.sin(angleRad),
+  };
+};
+
+const describeArcSegment = (cx, cy, r, startAngle, endAngle) => {
+  const start = polarToCartesian(cx, cy, r, endAngle);
+  const end = polarToCartesian(cx, cy, r, startAngle);
+  const largeArcFlag = endAngle - startAngle <= 180 ? "0" : "1";
+  return `M ${cx} ${cy} L ${start.x} ${start.y} A ${r} ${r} 0 ${largeArcFlag} 0 ${end.x} ${end.y} Z`;
+};
+
+const TrendLineAreaChart = ({ title, subtitle, data, color = colors.primary }) => {
+  const chartData = data.map((item) => ({ value: item.value, label: item.label }));
+  const chartWidth = Math.max(320, data.length * 52);
+  const scrollRef = useRef(null);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      scrollRef.current?.scrollToEnd({ animated: false });
+    }, 0);
+    return () => clearTimeout(timer);
+  }, [chartWidth, data]);
+
+  return (
+    <View style={[styles.chartCard, { marginTop: 12 }]}>
+      <View style={styles.chartHeader}>
+        <Text style={styles.chartTitle}>{title}</Text>
+        <Text style={styles.chartSub}>{subtitle}</Text>
+      </View>
+      <ScrollView
+        ref={scrollRef}
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={{ paddingRight: 8 }}
+        onContentSizeChange={() => scrollRef.current?.scrollToEnd({ animated: false })}
+      >
+        <LineChart
+          areaChart
+          data={chartData}
+          width={chartWidth}
+          height={160}
+          color={color}
+          thickness={2}
+          startFillColor={`${color}44`}
+          endFillColor={`${color}08`}
+          initialSpacing={12}
+          noOfSections={3}
+          hideDataPoints={false}
+          dataPointsColor={color}
+          dataPointsRadius={3}
+          xAxisColor="#E5E7EB"
+          yAxisColor="transparent"
+          yAxisTextStyle={{ color: colors.muted, fontSize: 9 }}
+          xAxisLabelTextStyle={{ color: colors.muted, fontSize: 9 }}
+          rulesType="solid"
+          rulesColor="#EEF2F7"
+          isAnimated
+          animationDuration={700}
+        />
+      </ScrollView>
+    </View>
+  );
 };
 
 // ─── Payout Detail Modal ──────────────────────────────────────────────────────
@@ -246,9 +316,9 @@ export const FinanceScreen = () => {
     processPayout,
   } = useAdmin();
   const toast = useToast();
-  const { cardColumns } = useResponsive();
+  const { cardColumns, isWide, isMobile } = useResponsive();
 
-  const [activeTab, setActiveTab] = useState("payouts"); // payouts | analytics
+  const [activeTab, setActiveTab] = useState("analytics"); // analytics | payouts
   const [statusFilter, setStatusFilter] = useState("all");
   const [selectedPayout, setSelectedPayout] = useState(null);
 
@@ -265,6 +335,149 @@ export const FinanceScreen = () => {
   const completedTotal = payouts
     .filter((p) => p.status === "completed")
     .reduce((s, p) => s + Number(p.amount || 0), 0);
+
+  const revenueCompositionData = useMemo(() => {
+    return [
+      {
+        id: "service-fees",
+        label: "Service Fees",
+        value: Number(metrics?.totalServiceFees || 0),
+        color: colors.primary,
+      },
+      {
+        id: "commission",
+        label: "Commission",
+        value: Number(metrics?.totalCommissions || 0),
+        color: colors.info,
+      },
+      {
+        id: "processing",
+        label: "Processing Fees",
+        value: Number(metrics?.totalPaystackFees || 0),
+        color: colors.warning,
+      },
+      {
+        id: "payouts",
+        label: "Payouts",
+        value: Number(completedTotal || 0),
+        color: colors.danger,
+      },
+    ];
+  }, [metrics, completedTotal]);
+
+  const monthlyEarningsTrend = useMemo(() => {
+    const now = new Date();
+    const months = Array.from({ length: 6 }).map((_, i) => {
+      const monthDate = new Date(now.getFullYear(), now.getMonth() - (5 - i), 1);
+      const monthKey = `${monthDate.getFullYear()}-${String(monthDate.getMonth() + 1).padStart(2, "0")}`;
+      const label = monthDate.toLocaleDateString("en-GB", { month: "short" });
+
+      const successfulForMonth = transactionPayments.filter((p) => {
+        if (p.status !== "success") return false;
+        const iso = p.paid_at || p.created_at;
+        if (!iso) return false;
+        const d = new Date(iso);
+        const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+        return key === monthKey;
+      });
+
+      const platformEarnings = successfulForMonth.reduce(
+        (sum, p) =>
+          sum +
+          Number(p.service_fee_amount || 0) +
+          Number(p.platform_commission || 0),
+        0,
+      );
+
+      return {
+        key: monthKey,
+        label,
+        value: platformEarnings,
+      };
+    });
+
+    return months;
+  }, [transactionPayments]);
+
+  const dailyTrend = useMemo(() => {
+    const now = new Date();
+    return Array.from({ length: 7 }).map((_, i) => {
+      const d = new Date(now);
+      d.setDate(now.getDate() - (6 - i));
+      const key = d.toISOString().slice(0, 10);
+      const value = transactionPayments
+        .filter((p) => {
+          if (p.status !== "success") return false;
+          const iso = p.paid_at || p.created_at;
+          return iso && new Date(iso).toISOString().slice(0, 10) === key;
+        })
+        .reduce(
+          (sum, p) =>
+            sum +
+            Number(p.service_fee_amount || 0) +
+            Number(p.platform_commission || 0),
+          0,
+        );
+      return {
+        key,
+        label: d.toLocaleDateString("en-GB", { weekday: "short" }),
+        value,
+      };
+    });
+  }, [transactionPayments]);
+
+  const weeklyTrend = useMemo(() => {
+    const now = new Date();
+    return Array.from({ length: 8 }).map((_, i) => {
+      const start = new Date(now);
+      start.setDate(now.getDate() - now.getDay() - (7 * (7 - i) - 1));
+      start.setHours(0, 0, 0, 0);
+      const end = new Date(start);
+      end.setDate(start.getDate() + 6);
+      end.setHours(23, 59, 59, 999);
+      const value = transactionPayments
+        .filter((p) => {
+          if (p.status !== "success") return false;
+          const iso = p.paid_at || p.created_at;
+          if (!iso) return false;
+          const d = new Date(iso);
+          return d >= start && d <= end;
+        })
+        .reduce(
+          (sum, p) =>
+            sum +
+            Number(p.service_fee_amount || 0) +
+            Number(p.platform_commission || 0),
+          0,
+        );
+      return {
+        key: `${start.toISOString().slice(0, 10)}-${i}`,
+        label: `W${i + 1}`,
+        value,
+      };
+    });
+  }, [transactionPayments]);
+
+  const yearlyTrend = useMemo(() => {
+    const yearNow = new Date().getFullYear();
+    return Array.from({ length: 5 }).map((_, i) => {
+      const year = yearNow - (4 - i);
+      const value = transactionPayments
+        .filter((p) => {
+          if (p.status !== "success") return false;
+          const iso = p.paid_at || p.created_at;
+          return iso && new Date(iso).getFullYear() === year;
+        })
+        .reduce(
+          (sum, p) =>
+            sum +
+            Number(p.service_fee_amount || 0) +
+            Number(p.platform_commission || 0),
+          0,
+        );
+      return { key: String(year), label: String(year), value };
+    });
+  }, [transactionPayments]);
 
   const handleProcess = async (id, status, ref) => {
     await processPayout(id, status, ref);
@@ -327,54 +540,12 @@ export const FinanceScreen = () => {
   ];
 
   return (
-    <View style={styles.container}>
-      {/* Hero */}
-      <LinearGradient
-        colors={["#1e40af", "#2563eb", "#3b82f6"]}
-        style={styles.hero}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-      >
-        <View style={styles.heroTopBar}>
-          <View style={styles.heroPill}>
-            <Ionicons name="wallet-outline" size={12} color="#fff" />
-            <Text style={styles.heroPillText}>Finance</Text>
-          </View>
-          {pendingPayouts.length > 0 && (
-            <View style={styles.pendingBadge}>
-              <Text style={styles.pendingBadgeText}>
-                {pendingPayouts.length} pending
-              </Text>
-            </View>
-          )}
-        </View>
-        <Text style={styles.heroTitle}>Finance</Text>
-        <Text style={styles.heroSub}>Payouts, revenue and analytics</Text>
-        <View style={styles.heroStrip}>
-          <View style={styles.heroStat}>
-            <Text style={styles.heroStatVal}>{pendingPayouts.length}</Text>
-            <Text style={styles.heroStatLab}>Pending Payouts</Text>
-          </View>
-          <View style={styles.heroStripDivider} />
-          <View style={styles.heroStat}>
-            <Text style={styles.heroStatVal}>{fmt(pendingTotal)}</Text>
-            <Text style={styles.heroStatLab}>Awaiting</Text>
-          </View>
-          <View style={styles.heroStripDivider} />
-          <View style={styles.heroStat}>
-            <Text style={styles.heroStatVal}>
-              {fmt(metrics?.netPlatformRevenue)}
-            </Text>
-            <Text style={styles.heroStatLab}>Net Revenue</Text>
-          </View>
-        </View>
-      </LinearGradient>
-
+    <View style={[styles.container, isMobile && styles.containerMobile]}>
       {/* Tabs */}
       <View style={styles.tabContainer}>
         {[
-          { id: "payouts", label: "Payouts", icon: "arrow-up-circle-outline" },
           { id: "analytics", label: "Analytics", icon: "bar-chart-outline" },
+          { id: "payouts", label: "Payouts", icon: "arrow-up-circle-outline" },
         ].map((tab) => (
           <TouchableOpacity
             key={tab.id}
@@ -483,6 +654,100 @@ export const FinanceScreen = () => {
             />
           }
         >
+          <View style={[styles.chartCard, { marginTop: 12 }]}>
+            <View style={styles.chartHeader}>
+              <Text style={styles.chartTitle}>Revenue Composition</Text>
+              <Text style={styles.chartSub}>Financial flow distribution</Text>
+            </View>
+            {(() => {
+              const chartData = revenueCompositionData.filter((i) => i.value > 0);
+              const total = chartData.reduce((sum, i) => sum + i.value, 0) || 1;
+              const cx = 90;
+              const cy = 90;
+              const radius = 72;
+              let angle = 0;
+              return (
+                <>
+                  <View style={styles.pieWrap}>
+                    <Svg width={180} height={180}>
+                      {chartData.map((item) => {
+                        const sweep = (item.value / total) * 360;
+                        const path = describeArcSegment(
+                          cx,
+                          cy,
+                          radius,
+                          angle,
+                          angle + sweep,
+                        );
+                        angle += sweep;
+                        return <Path key={item.id} d={path} fill={item.color} />;
+                      })}
+                      <Circle cx={cx} cy={cy} r={40} fill="#fff" />
+                    </Svg>
+                    <View style={styles.pieCenter}>
+                      <Text style={styles.pieCenterLabel}>Total</Text>
+                      <Text style={styles.pieCenterValue}>{fmt(total)}</Text>
+                    </View>
+                  </View>
+                  {chartData.map((item) => (
+                    <View key={item.id} style={styles.chartRow}>
+                      <View style={styles.chartRowHead}>
+                        <View style={styles.chartLegendLabel}>
+                          <View
+                            style={[
+                              styles.chartLegendDot,
+                              { backgroundColor: item.color },
+                            ]}
+                          />
+                          <Text style={styles.chartRowLabel}>{item.label}</Text>
+                        </View>
+                        <Text style={styles.chartRowMeta}>
+                          {fmt(item.value)} •{" "}
+                          {((item.value / total) * 100).toFixed(1)}%
+                        </Text>
+                      </View>
+                    </View>
+                  ))}
+                </>
+              );
+            })()}
+          </View>
+
+          <View style={[styles.chartGrid, isWide && styles.chartGridWide]}>
+            <View style={[styles.chartGridItem, isWide && styles.chartGridItemWide]}>
+              <TrendLineAreaChart
+                title="Daily Trend"
+                subtitle="Last 7 days"
+                data={dailyTrend}
+                color={colors.info}
+              />
+            </View>
+            <View style={[styles.chartGridItem, isWide && styles.chartGridItemWide]}>
+              <TrendLineAreaChart
+                title="Weekly Trend"
+                subtitle="Last 8 weeks"
+                data={weeklyTrend}
+                color={colors.success}
+              />
+            </View>
+            <View style={[styles.chartGridItem, isWide && styles.chartGridItemWide]}>
+              <TrendLineAreaChart
+                title="6-Month Earnings Trend"
+                subtitle="Platform earnings (service fees + commission)"
+                data={monthlyEarningsTrend}
+                color={colors.primary}
+              />
+            </View>
+            <View style={[styles.chartGridItem, isWide && styles.chartGridItemWide]}>
+              <TrendLineAreaChart
+                title="Yearly Trend"
+                subtitle="Last 5 years"
+                data={yearlyTrend}
+                color={colors.warning}
+              />
+            </View>
+          </View>
+
           {/* Period Performance */}
           <View style={styles.periodCard}>
             <Text style={styles.periodTitle}>Today</Text>
@@ -554,6 +819,7 @@ export const FinanceScreen = () => {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.light },
+  containerMobile: { paddingTop: 30 },
   // Hero
   hero: { paddingHorizontal: H_PAD, paddingTop: 54, paddingBottom: 20 },
   heroTopBar: {
@@ -593,20 +859,13 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   heroStat: { flex: 1, alignItems: "center" },
-  heroStatVal: { fontSize: 15, fontWeight: "900", color: "#fff" },
+  heroStatVal: { fontSize: 18, fontWeight: "900", color: "#fff" },
   heroStatLab: { fontSize: 10, color: "rgba(255,255,255,0.7)", marginTop: 2 },
   heroStripDivider: {
     width: 1,
     height: 28,
     backgroundColor: "rgba(255,255,255,0.2)",
   },
-  pendingBadge: {
-    backgroundColor: "rgba(245,158,11,0.85)",
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 12,
-  },
-  pendingBadgeText: { color: "#fff", fontWeight: "700", fontSize: 12 },
   tabContainer: {
     flexDirection: "row",
     backgroundColor: "#fff",
@@ -745,6 +1004,153 @@ const styles = StyleSheet.create({
   },
   actionBtnText: { color: "#fff", fontWeight: "700", fontSize: 14 },
   // Analytics
+  chartCard: {
+    backgroundColor: "#fff",
+    borderRadius: 14,
+    padding: 16,
+    shadowColor: "#000",
+    shadowOpacity: 0.04,
+    shadowOffset: { width: 0, height: 2 },
+    shadowRadius: 6,
+    elevation: 2,
+  },
+  chartGrid: {
+    marginTop: 4,
+    marginBottom: 16,
+  },
+  chartGridWide: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 12,
+  },
+  chartGridItem: {
+    width: "100%",
+  },
+  chartGridItemWide: {
+    width: "48.8%",
+  },
+  chartHeader: { marginBottom: 12 },
+  chartTitle: { fontSize: 15, fontWeight: "800", color: colors.dark },
+  chartSub: { fontSize: 12, color: colors.muted, marginTop: 2 },
+  chartRow: { marginBottom: 10 },
+  chartRowHead: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 6,
+  },
+  chartRowLabel: { fontSize: 12, color: colors.dark, fontWeight: "600" },
+  chartRowMeta: { fontSize: 12, color: colors.muted, fontWeight: "700" },
+  track: {
+    height: 8,
+    borderRadius: 999,
+    backgroundColor: "#E5E7EB",
+    overflow: "hidden",
+  },
+  fill: {
+    height: "100%",
+    borderRadius: 999,
+    minWidth: 4,
+  },
+  lineChartScroll: {
+    marginTop: 8,
+    marginHorizontal: -H_PAD,
+    paddingHorizontal: H_PAD,
+  },
+  lineChartContainer: {
+    paddingRight: H_PAD,
+  },
+  lineChart: {
+    height: 210,
+    position: "relative",
+    backgroundColor: "#F8FAFC",
+    paddingHorizontal: 8,
+    paddingTop: 14,
+    paddingBottom: 44,
+    overflow: "hidden",
+    minWidth: 360,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+  },
+  lineChartGrid: {
+    position: "absolute",
+    left: 10,
+    right: 10,
+    top: 14,
+    height: 1,
+    borderTopWidth: 1,
+    borderTopColor: "#DDE5F0",
+    borderStyle: "dashed",
+  },
+  lineSegment: {
+    position: "absolute",
+    height: 2,
+    backgroundColor: colors.primary,
+  },
+  areaColumn: {
+    position: "absolute",
+    width: 24,
+    borderTopLeftRadius: 8,
+    borderTopRightRadius: 8,
+  },
+  lineDot: {
+    position: "absolute",
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: colors.primary,
+    borderWidth: 2,
+    borderColor: "#fff",
+  },
+  lineXLabel: {
+    position: "absolute",
+    top: 170,
+    width: 24,
+    textAlign: "center",
+    fontSize: 11,
+    color: colors.muted,
+    fontWeight: "700",
+  },
+  pieWrap: {
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 14,
+  },
+  pieCenter: {
+    position: "absolute",
+    alignItems: "center",
+  },
+  pieCenterLabel: {
+    fontSize: 11,
+    color: colors.muted,
+    fontWeight: "700",
+  },
+  pieCenterValue: {
+    fontSize: 11,
+    color: colors.dark,
+    fontWeight: "800",
+    marginTop: 2,
+  },
+  chartLegendLabel: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  chartLegendDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+  },
+  lineValueLabel: {
+    position: "absolute",
+    top: 152,
+    width: 52,
+    textAlign: "center",
+    fontSize: 9,
+    color: colors.dark,
+    fontWeight: "700",
+  },
   periodCard: {
     backgroundColor: "#fff",
     borderRadius: 14,

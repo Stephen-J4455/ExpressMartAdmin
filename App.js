@@ -35,6 +35,7 @@ import { SellersScreen } from "./src/screens/SellersScreen";
 import { ModerationScreen } from "./src/screens/ModerationScreen";
 import { SettingsScreen } from "./src/screens/SettingsScreen";
 import { SupportScreen } from "./src/screens/SupportScreen";
+import { ReviewModerationScreen } from "./src/screens/ReviewModerationScreen";
 import { OrdersScreen } from "./src/screens/OrdersScreen";
 import { CustomersScreen } from "./src/screens/CustomersScreen";
 import { FinanceScreen } from "./src/screens/FinanceScreen";
@@ -63,6 +64,7 @@ const linking = {
           Finance: "finance",
           Marketing: "marketing",
           Moderation: "moderation",
+          Reviews: "reviews",
           Ads: "ads",
           Settings: "settings",
           Support: "support",
@@ -368,6 +370,16 @@ const AdminTabs = ({ onLogout }) => {
         }}
       />
       <Tab.Screen
+        name="Reviews"
+        component={ReviewModerationScreen}
+        options={{
+          tabBarLabel: "Reviews",
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="chatbox-ellipses-outline" size={size} color={color} />
+          ),
+        }}
+      />
+      <Tab.Screen
         name="Ads"
         component={AdsManagementScreen}
         options={{
@@ -412,7 +424,7 @@ const AdminTabs = ({ onLogout }) => {
 };
 
 /** Routes shown directly in the mobile bottom bar */
-const PRIMARY_TABS = ["Overview", "Moderation", "Sellers", "Finance"];
+const PRIMARY_TABS = ["Overview", "Moderation", "Reviews", "Sellers"];
 
 /** Routes accessible via the "More" sheet */
 const OVERFLOW_TABS = [
@@ -420,6 +432,7 @@ const OVERFLOW_TABS = [
   "Orders",
   "Customers",
   "Marketing",
+  "Finance",
   "Ads",
   "Support",
   "Updates",
@@ -435,6 +448,7 @@ const ADMIN_ICONS = {
   Finance: "wallet-outline",
   Marketing: "pricetag-outline",
   Moderation: "shield-checkmark-outline",
+  Reviews: "chatbox-ellipses-outline",
   Ads: "megaphone-outline",
   Settings: "settings-outline",
   Support: "help-circle-outline",
@@ -450,6 +464,7 @@ const ADMIN_ICONS_FILLED = {
   Finance: "wallet",
   Marketing: "pricetag",
   Moderation: "shield-checkmark",
+  Reviews: "chatbox-ellipses",
   Ads: "megaphone",
   Settings: "settings",
   Support: "help-circle",

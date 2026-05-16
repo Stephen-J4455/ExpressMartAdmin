@@ -49,6 +49,12 @@ const SORT_OPTIONS = [
   { id: "recent", label: "Recent" },
 ];
 
+const formatSellerRating = (rating) => {
+  if (rating === null || rating === undefined || rating === "") return "–";
+  const parsedRating = Number(rating);
+  return Number.isFinite(parsedRating) ? parsedRating.toFixed(1) : "–";
+};
+
 // ─── SellerCard ───────────────────────────────────────────────────────────────
 const SellerCard = ({ seller, onUpdate }) => {
   const [showBadgeModal, setShowBadgeModal] = useState(false);
@@ -155,7 +161,7 @@ const SellerCard = ({ seller, onUpdate }) => {
         {/* Rating chip */}
         <View style={styles.ratingChip}>
           <Ionicons name="star" size={12} color="#F59E0B" />
-          <Text style={styles.ratingText}>{seller.rating || "–"}</Text>
+          <Text style={styles.ratingText}>{formatSellerRating(seller.rating)}</Text>
         </View>
       </View>
 

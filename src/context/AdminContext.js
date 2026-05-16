@@ -11,6 +11,7 @@ import { Alert } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { supabase } from "../../supabase";
 import notificationService from "../services/notificationService";
+import { colors } from "../theme/colors";
 
 const AdminContext = createContext();
 
@@ -203,6 +204,11 @@ const getStoragePathFromUrl = (url) => {
 
   return normalizeStorageObjectPath(cleanUrl);
 };
+
+const normalizeIdentity = (value) =>
+  String(value ?? "")
+    .trim()
+    .toLowerCase();
 
 export const AdminProvider = ({ children }) => {
   const [products, setProducts] = useState([]);
@@ -619,6 +625,74 @@ export const AdminProvider = ({ children }) => {
     };
   }, [fetchAll, resetState]);
 
+  const sellersWithComputedRatings = useMemo(() => {
+    if (!sellers.length) return sellers;
+
+    const approvedReviews = reviews.filter(
+      (review) =>
+        review?.is_approved === true &&
+        review?.product_id &&
+        Number.isFinite(Number(review?.rating)),
+    );
+
+    const productRatingStats = approvedReviews.reduce((acc, review) => {
+      const productId = review.product_id;
+      if (!acc[productId]) acc[productId] = { sum: 0, count: 0 };
+      acc[productId].sum += Number(review.rating);
+      acc[productId].count += 1;
+      return acc;
+    }, {});
+
+    const productAverageRatings = Object.entries(productRatingStats).reduce(
+      (acc, [productId, stats]) => {
+        acc[productId] =
+          stats.count > 0 ? Number((stats.sum / stats.count).toFixed(2)) : null;
+        return acc;
+      },
+      {},
+    );
+
+    const productSellerIdentityById = products.reduce((acc, product) => {
+      if (!product?.id) return acc;
+      acc[product.id] = {
+        sellerId: normalizeIdentity(product.seller_id),
+        vendor: normalizeIdentity(product.vendor),
+      };
+      return acc;
+    }, {});
+
+    const sellerRatingById = sellers.reduce((acc, seller) => {
+      const sellerIdKey = normalizeIdentity(seller?.id);
+      const sellerNameKey = normalizeIdentity(seller?.name);
+
+      const matchingProductIds = Object.entries(productSellerIdentityById)
+        .filter(([, productIdentity]) => {
+          if (sellerIdKey && productIdentity.sellerId === sellerIdKey) return true;
+          if (sellerNameKey && productIdentity.vendor === sellerNameKey) return true;
+          return false;
+        })
+        .map(([productId]) => productId);
+
+      const productRatings = matchingProductIds
+        .map((productId) => productAverageRatings[productId])
+        .filter((value) => Number.isFinite(Number(value)));
+
+      if (!productRatings.length) {
+        acc[seller.id] = null;
+        return acc;
+      }
+
+      const total = productRatings.reduce((sum, value) => sum + Number(value), 0);
+      acc[seller.id] = Number((total / productRatings.length).toFixed(1));
+      return acc;
+    }, {});
+
+    return sellers.map((seller) => ({
+      ...seller,
+      rating: sellerRatingById[seller.id],
+    }));
+  }, [sellers, products, reviews]);
+
   const metrics = useMemo(() => {
     const pendingProducts = products.filter(
       (p) => p.status === "pending",
@@ -730,7 +804,7 @@ export const AdminProvider = ({ children }) => {
       escalations,
       openTickets,
       pendingPayouts,
-      vendors: sellers.length,
+      vendors: sellersWithComputedRatings.length,
       totalUsers: users.length,
       // Payment fee metrics
       totalPaystackFees,
@@ -747,7 +821,15 @@ export const AdminProvider = ({ children }) => {
       platformEarningsThisMonth:
         serviceFeeThisMonthResolved + commissionThisMonth,
     };
-  }, [products, orders, tickets, sellers, users, payouts, transactionPayments]);
+  }, [
+    products,
+    orders,
+    tickets,
+    sellersWithComputedRatings,
+    users,
+    payouts,
+    transactionPayments,
+  ]);
 
   const updateProductStatus = useCallback(async (productId, status) => {
     if (!supabase) return;
@@ -990,6 +1072,32 @@ export const AdminProvider = ({ children }) => {
     );
   }, []);
 
+  const deleteReview = useCallback(async (reviewId) => {
+    if (!supabase) return;
+    const { error: deleteError } = await supabase
+      .from("express_reviews")
+      .delete()
+      .eq("id", reviewId);
+    if (deleteError) {
+      Alert.alert("Unable to remove review", deleteError.message);
+      return;
+    }
+    setReviews((prev) => prev.filter((review) => review.id !== reviewId));
+  }, []);
+
+  const deleteComment = useCallback(async (commentId) => {
+    if (!supabase) return;
+    const { error: deleteError } = await supabase
+      .from("express_review_comments")
+      .delete()
+      .eq("id", commentId);
+    if (deleteError) {
+      Alert.alert("Unable to remove comment", deleteError.message);
+      return;
+    }
+    setComments((prev) => prev.filter((comment) => comment.id !== commentId));
+  }, []);
+
   // Seller management
   const verifySeller = useCallback(async (sellerId, isVerified = true) => {
     if (!supabase) return;
@@ -1028,47 +1136,227 @@ export const AdminProvider = ({ children }) => {
     [],
   );
 
-  // Category management
-  const createCategory = useCallback(async ({ name, icon, color }) => {
-    if (!supabase) return;
-    const { data, error: insertError } = await supabase
-      .from("express_categories")
-      .insert({ name, icon, color })
-      .select()
-      .single();
-    if (insertError) {
-      Alert.alert("Unable to create category", insertError.message);
-      return;
-    }
-    setCategories((prev) => [...prev, data]);
-  }, []);
+  const updateUserRole = useCallback(async (userId, role) => {
+    if (!supabase) throw new Error("Supabase is not initialized");
 
-  const updateCategory = useCallback(async (categoryId, updates) => {
-    if (!supabase) return;
-    const { error: updateError } = await supabase
-      .from("express_categories")
-      .update(updates)
-      .eq("id", categoryId);
-    if (updateError) {
-      Alert.alert("Unable to update category", updateError.message);
-      return;
+    const normalizedRole = String(role || "")
+      .trim()
+      .toLowerCase();
+    if (!normalizedRole) {
+      throw new Error("A valid role is required.");
     }
-    setCategories((prev) =>
-      prev.map((c) => (c.id === categoryId ? { ...c, ...updates } : c)),
+
+    const { error: updateError } = await supabase
+      .from("express_profiles")
+      .update({ role: normalizedRole })
+      .eq("id", userId);
+    if (updateError) {
+      throw new Error(updateError.message);
+    }
+
+    if (normalizedRole !== "seller") {
+      const { error: sellerDeleteError } = await supabase
+        .from("express_sellers")
+        .delete()
+        .eq("user_id", userId);
+      if (sellerDeleteError) {
+        throw new Error(sellerDeleteError.message);
+      }
+      setSellers((prev) => prev.filter((s) => s.user_id !== userId));
+    }
+
+    setUsers((prev) =>
+      prev.map((u) => (u.id === userId ? { ...u, role: normalizedRole } : u)),
     );
   }, []);
 
+  const deleteSeller = useCallback(async (sellerId) => {
+    if (!supabase) throw new Error("Supabase is not initialized");
+    if (!sellerId) throw new Error("Seller ID is required.");
+
+    const seller = sellers.find((s) => s.id === sellerId);
+    if (!seller) throw new Error("Seller not found.");
+
+    const { error: deleteError } = await supabase
+      .from("express_sellers")
+      .delete()
+      .eq("id", sellerId);
+    if (deleteError) {
+      throw new Error(deleteError.message);
+    }
+
+    setSellers((prev) => prev.filter((s) => s.id !== sellerId));
+
+    if (seller.user_id) {
+      await updateUserRole(seller.user_id, "customer");
+    }
+  }, [sellers, updateUserRole]);
+
+  const promoteCustomerToSeller = useCallback(
+    async ({ userId, email, fullName = "", phone = null }) => {
+      if (!supabase) throw new Error("Supabase is not initialized");
+      if (!userId) throw new Error("User ID is required.");
+      if (!email) throw new Error("User email is required.");
+
+      const normalizedName =
+        String(fullName || "")
+          .trim()
+          .replace(/\s+/g, " ") ||
+        String(email).split("@")[0] ||
+        "Seller";
+
+      const { data: existingSeller, error: sellerFetchError } = await supabase
+        .from("express_sellers")
+        .select("id,user_id")
+        .eq("user_id", userId)
+        .maybeSingle();
+      if (sellerFetchError) {
+        throw new Error(sellerFetchError.message);
+      }
+
+      if (!existingSeller) {
+        const basePayload = {
+          user_id: userId,
+          name: normalizedName,
+          email,
+          phone,
+          rating: 0,
+          fulfillment_speed: "Standard",
+          weekly_target: 100,
+        };
+
+        let insertedSeller = null;
+        const { data: inserted, error: insertSellerError } = await supabase
+          .from("express_sellers")
+          .insert(basePayload)
+          .select("*")
+          .single();
+
+        if (insertSellerError) {
+          if (insertSellerError.code !== "23505") {
+            throw new Error(insertSellerError.message);
+          }
+
+          const fallbackName = `${normalizedName}-${String(userId).slice(0, 6)}`;
+          const { data: fallbackInserted, error: fallbackInsertError } =
+            await supabase
+              .from("express_sellers")
+              .insert({ ...basePayload, name: fallbackName })
+              .select("*")
+              .single();
+          if (fallbackInsertError) {
+            throw new Error(fallbackInsertError.message);
+          }
+          insertedSeller = fallbackInserted;
+        } else {
+          insertedSeller = inserted;
+        }
+
+        if (insertedSeller) {
+          setSellers((prev) =>
+            prev.some((s) => s.id === insertedSeller.id)
+              ? prev
+              : [insertedSeller, ...prev],
+          );
+        }
+      }
+
+      await updateUserRole(userId, "seller");
+
+      const { error: resetError } = await supabase.auth.resetPasswordForEmail(
+        email,
+        {
+          redirectTo:
+            "https://stephen-j4455.github.io/express-password-reset/password-reset.html?scheme=expressseller",
+        },
+      );
+      if (resetError) {
+        throw new Error(resetError.message);
+      }
+    },
+    [updateUserRole],
+  );
+
+  // Category management
+  const createCategory = useCallback(async ({ name, icon, color }) => {
+    if (!supabase) throw new Error("Supabase is not initialized");
+    const safeName = name?.trim();
+    if (!safeName) throw new Error("Category name is required");
+    const { data, error: insertError } = await supabase
+      .from("express_categories")
+      .insert({
+        name: safeName,
+        icon: icon || "grid-outline",
+        color: color || colors.primary,
+      })
+      .select()
+      .single();
+    if (insertError) {
+      throw new Error(insertError.message);
+    }
+    setCategories((prev) => [...prev, data]);
+    return data;
+  }, []);
+
+  const updateCategory = useCallback(async (categoryId, updates) => {
+    if (!supabase) throw new Error("Supabase is not initialized");
+    const existingCategory = categories.find((c) => c.id === categoryId);
+    if (!existingCategory) throw new Error("Category not found");
+
+    const normalizedUpdates = {
+      ...updates,
+      name: updates?.name?.trim() || existingCategory.name,
+      icon: updates?.icon || existingCategory.icon || "grid-outline",
+      color: updates?.color || existingCategory.color || colors.primary,
+    };
+
+    const { data: updatedCategory, error: updateError } = await supabase
+      .from("express_categories")
+      .update(normalizedUpdates)
+      .eq("id", categoryId)
+      .select()
+      .single();
+    if (updateError) {
+      throw new Error(updateError.message);
+    }
+
+    if (
+      normalizedUpdates.name &&
+      normalizedUpdates.name !== existingCategory.name
+    ) {
+      const { error: productsUpdateError } = await supabase
+        .from("express_products")
+        .update({ category: normalizedUpdates.name })
+        .eq("category", existingCategory.name);
+      if (productsUpdateError) {
+        throw new Error(productsUpdateError.message);
+      }
+      setProducts((prev) =>
+        prev.map((p) =>
+          p.category === existingCategory.name
+            ? { ...p, category: normalizedUpdates.name }
+            : p,
+        ),
+      );
+    }
+
+    setCategories((prev) =>
+      prev.map((c) => (c.id === categoryId ? updatedCategory : c)),
+    );
+    return updatedCategory;
+  }, [categories]);
+
   const deleteCategory = useCallback(async (categoryId) => {
-    if (!supabase) return;
+    if (!supabase) throw new Error("Supabase is not initialized");
     const { error: deleteError } = await supabase
       .from("express_categories")
       .delete()
       .eq("id", categoryId);
     if (deleteError) {
-      Alert.alert("Unable to delete category", deleteError.message);
-      return;
+      throw new Error(deleteError.message);
     }
     setCategories((prev) => prev.filter((c) => c.id !== categoryId));
+    return true;
   }, []);
 
   // Banner management
@@ -1232,7 +1520,7 @@ export const AdminProvider = ({ children }) => {
     products,
     categories,
     orders,
-    sellers,
+    sellers: sellersWithComputedRatings,
     tickets,
     users,
     banners,
@@ -1255,6 +1543,9 @@ export const AdminProvider = ({ children }) => {
     // Seller actions
     verifySeller,
     updateSellerCommission,
+    deleteSeller,
+    updateUserRole,
+    promoteCustomerToSeller,
     // Category actions
     createCategory,
     updateCategory,
@@ -1276,6 +1567,8 @@ export const AdminProvider = ({ children }) => {
     comments,
     updateReviewStatus,
     updateCommentStatus,
+    deleteReview,
+    deleteComment,
     logout,
     transactionPayments,
   };

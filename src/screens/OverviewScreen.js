@@ -9,8 +9,9 @@ import {
   TouchableOpacity,
   Platform,
 } from "react-native";
-import { useState } from "react";
+import { useMemo } from "react";
 import { Ionicons } from "@expo/vector-icons";
+import { LineChart } from "react-native-gifted-charts";
 import { useAdmin } from "../context/AdminContext";
 import { colors } from "../theme/colors";
 import { StatusPill } from "../components/StatusPill";
@@ -25,6 +26,12 @@ const fmt = (n) =>
     maximumFractionDigits: 2,
   })}`;
 
+const formatSellerRating = (rating) => {
+  if (rating === null || rating === undefined || rating === "") return "–";
+  const parsedRating = Number(rating);
+  return Number.isFinite(parsedRating) ? parsedRating.toFixed(1) : "–";
+};
+
 // ─── Sub-components ──────────────────────────────────────────────────────────
 
 const KpiTile = ({
@@ -35,21 +42,23 @@ const KpiTile = ({
   subText,
   borderColor,
   tileWidth,
-}) => (
-  <View
-    style={[
-      styles.kpiTile,
-      { borderLeftColor: borderColor || colors.primary, width: tileWidth },
-    ]}
-  >
-    <View style={[styles.kpiIconWrap, { backgroundColor: iconColor + "20" }]}>
-      <Ionicons name={icon} size={18} color={iconColor} />
+}) => {
+  const accent = borderColor || colors.primary;
+  return (
+    <View style={[styles.kpiTile, { borderColor: accent, width: tileWidth }]}>
+    <View style={styles.kpiTop}>
+      <View style={[styles.kpiIconWrap, { backgroundColor: iconColor + "20" }]}>
+        <Ionicons name={icon} size={18} color={iconColor} />
+      </View>
+      <View style={[styles.kpiBadge, { backgroundColor: accent + "1A" }]}>
+        <Text style={[styles.kpiBadgeText, { color: accent }]}>{label}</Text>
+      </View>
     </View>
     <Text style={styles.kpiValue}>{value}</Text>
-    <Text style={styles.kpiLabel}>{label}</Text>
     {subText ? <Text style={styles.kpiSub}>{subText}</Text> : null}
   </View>
-);
+  );
+};
 
 const RevenueRow = ({ dot, label, value, valueColor, bold }) => (
   <View style={styles.revRow}>
@@ -84,6 +93,41 @@ const SectionLabel = ({ title, count }) => (
     )}
   </View>
 );
+
+const AreaTrendCard = ({ title, subtitle, data, color }) => {
+  const chartWidth = Math.max(320, data.length * 70);
+  return (
+    <View style={styles.areaCard}>
+      <View style={styles.areaHeader}>
+        <Text style={styles.areaTitle}>{title}</Text>
+        <Text style={styles.areaSub}>{subtitle}</Text>
+      </View>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+        <LineChart
+          areaChart
+          data={data}
+          width={chartWidth}
+          height={170}
+          color={color}
+          thickness={2}
+          startFillColor={`${color}3A`}
+          endFillColor={`${color}08`}
+          initialSpacing={14}
+          noOfSections={3}
+          hideDataPoints={false}
+          dataPointsColor={color}
+          dataPointsRadius={3}
+          xAxisColor="#E5E7EB"
+          yAxisColor="transparent"
+          yAxisTextStyle={{ color: colors.muted, fontSize: 10 }}
+          xAxisLabelTextStyle={{ color: colors.muted, fontSize: 10 }}
+          rulesType="solid"
+          rulesColor="#EEF2F7"
+        />
+      </ScrollView>
+    </View>
+  );
+};
 
 // ─── Main Screen ─────────────────────────────────────────────────────────────
 
@@ -123,6 +167,36 @@ export const OverviewScreen = () => {
   const spotlightSellers = sellers.slice(0, 4);
   const recentOrders = orders.slice(0, 5);
   const watchlist = products.filter((p) => p.status === "pending").slice(0, 5);
+  const pendingModerations =
+    (metrics.pendingProducts || 0) + (metrics.reviewQueue || 0);
+
+  const keyMetricChartData = useMemo(
+    () => [
+      { value: Number(metrics.totalUsers || customers.length || 0), label: "Users" },
+      { value: Number(metrics.vendors || 0), label: "Vendors" },
+      { value: Number(metrics.platformEarningsToday || 0), label: "Today" },
+      { value: Number(metrics.platformEarningsThisMonth || 0), label: "Month" },
+      { value: Number(metrics.netPlatformRevenue || 0), label: "Net" },
+    ],
+    [metrics, customers.length],
+  );
+
+  const operationsChartData = useMemo(
+    () => [
+      { value: Number(activeOrders.length || 0), label: "Orders" },
+      { value: Number(pendingModerations || 0), label: "Moderation" },
+      { value: Number(activeAds || 0), label: "Ads On" },
+      { value: Number(inactiveAds || 0), label: "Ads Off" },
+      { value: Number(metrics.openTickets || 0), label: "Tickets" },
+    ],
+    [
+      activeOrders.length,
+      pendingModerations,
+      activeAds,
+      inactiveAds,
+      metrics.openTickets,
+    ],
+  );
   return (
     <ScrollView
       style={styles.root}
@@ -222,14 +296,20 @@ export const OverviewScreen = () => {
         />
         <KpiTile
           tileWidth={TILE_W}
-          icon="wallet-outline"
+          icon="cube-outline"
           iconColor={colors.warning}
           borderColor={colors.warning}
-          value={metrics.pendingPayouts || 0}
-          label="Pending Payouts"
-          subText="Awaiting disbursement"
+          value={metrics.activeProducts || products.filter((p) => p.status === "active").length}
+          label="Total Active Products"
+          subText="Currently listed"
         />
       </View>
+      <AreaTrendCard
+        title="Key Metrics Trend"
+        subtitle="Users, vendors and earnings health"
+        data={keyMetricChartData}
+        color={colors.primary}
+      />
 
       {/* ── REVENUE CARD ── */}
       <SectionLabel title="Platform Revenue" />
@@ -305,6 +385,12 @@ export const OverviewScreen = () => {
 
       {/* ── OPS GRID ── */}
       <SectionLabel title="Operations" />
+      <AreaTrendCard
+        title="Operations Trend"
+        subtitle="Activity and queue load overview"
+        data={operationsChartData}
+        color={colors.success}
+      />
       {isWide ? (
         <View style={styles.opsGridWrap}>
           {[
@@ -318,8 +404,7 @@ export const OverviewScreen = () => {
               icon: "time-outline",
               color: colors.warning,
               label: "Pending Moderations",
-              value:
-                (metrics.pendingProducts || 0) + (metrics.reviewQueue || 0),
+              value: pendingModerations,
             },
             {
               icon: "megaphone-outline",
@@ -380,8 +465,7 @@ export const OverviewScreen = () => {
               icon: "time-outline",
               color: colors.warning,
               label: "Pending Moderations",
-              value:
-                (metrics.pendingProducts || 0) + (metrics.reviewQueue || 0),
+              value: pendingModerations,
             },
             {
               icon: "megaphone-outline",
@@ -460,7 +544,7 @@ export const OverviewScreen = () => {
               <View style={styles.sellerRating}>
                 <Ionicons name="star" size={12} color="#f59e0b" />
                 <Text style={styles.sellerRatingText}>
-                  {seller.rating || "–"}
+                  {formatSellerRating(seller.rating)}
                 </Text>
               </View>
             </View>
@@ -674,12 +758,18 @@ const styles = StyleSheet.create({
     backgroundColor: "#fff",
     borderRadius: 18,
     padding: 16,
-    borderLeftWidth: 4,
+    borderWidth: 1,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.04,
     shadowRadius: 8,
     elevation: 2,
+  },
+  kpiTop: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 10,
   },
   kpiIconWrap: {
     width: 36,
@@ -687,7 +777,15 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     alignItems: "center",
     justifyContent: "center",
-    marginBottom: 10,
+  },
+  kpiBadge: {
+    borderRadius: 999,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+  },
+  kpiBadgeText: {
+    fontSize: 10,
+    fontWeight: "800",
   },
   kpiValue: {
     fontSize: 26,
@@ -695,18 +793,27 @@ const styles = StyleSheet.create({
     color: colors.dark,
     letterSpacing: -1,
   },
-  kpiLabel: {
-    fontSize: 13,
-    fontWeight: "700",
-    color: colors.dark,
-    marginTop: 2,
-  },
   kpiSub: {
     fontSize: 11,
     color: colors.muted,
     marginTop: 3,
     fontWeight: "500",
   },
+  areaCard: {
+    backgroundColor: "#fff",
+    borderRadius: 16,
+    padding: 14,
+    marginTop: 10,
+    marginBottom: 8,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 8,
+    elevation: 2,
+  },
+  areaHeader: { marginBottom: 10 },
+  areaTitle: { fontSize: 14, fontWeight: "800", color: colors.dark },
+  areaSub: { fontSize: 11, color: colors.muted, marginTop: 2 },
 
   // Card
   card: {

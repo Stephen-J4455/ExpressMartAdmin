@@ -2,7 +2,6 @@ import React, { useState, useMemo } from "react";
 import {
     View,
     Text,
-    Alert,
     Modal,
     Platform,
     Image,
@@ -16,6 +15,7 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import { useAdmin } from "../context/AdminContext";
 import { colors } from "../theme/colors";
+import { Alert } from "../utils/alert";
 
 export const ReviewModerationScreen = () => {
     const {

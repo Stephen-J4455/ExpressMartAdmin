@@ -11,7 +11,6 @@ import {
   TouchableOpacity,
   View,
   ActivityIndicator,
-  Alert,
   Platform,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
@@ -22,6 +21,7 @@ import { useNotifications } from "../context/NotificationContext";
 import { supabase } from "../../supabase";
 import { colors } from "../theme/colors";
 import { useResponsive } from "../hooks/useResponsive";
+import { Alert } from "../utils/alert";
 
 const H_PAD = 16;
 
@@ -452,15 +452,44 @@ export const CustomersScreen = () => {
   // Build order stats per user
   const userOrderMap = useMemo(() => {
     const map = {};
+    const emailToUserId = new Map(
+      users
+        .filter((u) => u?.id && u?.email)
+        .map((u) => [String(u.email).toLowerCase(), u.id]),
+    );
+
     orders.forEach((o) => {
-      if (!o.user_id) return;
-      if (!map[o.user_id]) map[o.user_id] = { count: 0, spend: 0 };
-      map[o.user_id].count += 1;
+      let userId =
+        o.user_id ||
+        o.userId ||
+        o.customer_id ||
+        o.customerId ||
+        o.customer?.id ||
+        null;
+
+      if (!userId) {
+        const customerEmail =
+          o.customer_email ||
+          o.customerEmail ||
+          o.email ||
+          o.customer?.email ||
+          (typeof o.customer === "string" && o.customer.includes("@")
+            ? o.customer
+            : null);
+
+        if (customerEmail) {
+          userId = emailToUserId.get(String(customerEmail).toLowerCase()) || null;
+        }
+      }
+
+      if (!userId) return;
+      if (!map[userId]) map[userId] = { count: 0, spend: 0 };
+      map[userId].count += 1;
       if (o.payment_status === "success")
-        map[o.user_id].spend += Number(o.total || 0);
+        map[userId].spend += Number(o.total || 0);
     });
     return map;
-  }, [orders]);
+  }, [orders, users]);
 
   const filtered = useMemo(() => {
     let list = users;
@@ -482,12 +511,6 @@ export const CustomersScreen = () => {
     }
     return list;
   }, [users, roleFilter, query]);
-
-  const customerCount = users.filter(
-    (u) => CUSTOMER_LIKE_ROLES.includes(normalizeRole(u.role)),
-  ).length;
-  const sellerCount = users.filter((u) => normalizeRole(u.role) === "seller")
-    .length;
 
   const handlePromoteToSeller = async (user) => {
     if (!user?.id) return;
@@ -535,15 +558,6 @@ export const CustomersScreen = () => {
       }
     };
 
-    if (Platform.OS === "web") {
-      const confirmed = globalThis.confirm(
-        `${user.email} will lose seller access. Continue?`,
-      );
-      if (!confirmed) return;
-      runDemotion();
-      return;
-    }
-
     Alert.alert("Change role to customer?", `${user.email} will lose seller access.`, [
       { text: "Cancel", style: "cancel" },
       {
@@ -556,48 +570,6 @@ export const CustomersScreen = () => {
 
   return (
     <View style={styles.container}>
-      {/* Hero */}
-      <LinearGradient
-        colors={["#0f172a", "#1d4ed8", "#0ea5e9"]}
-        style={styles.hero}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-      >
-        <View style={styles.heroGlowOne} />
-        <View style={styles.heroGlowTwo} />
-        <View style={styles.heroTopBar}>
-          <View style={styles.heroPill}>
-            <Ionicons name="people-outline" size={12} color="#fff" />
-            <Text style={styles.heroPillText}>{users.length} users</Text>
-          </View>
-          <TouchableOpacity
-            style={styles.broadcastBtn}
-            onPress={() => setShowBroadcast(true)}
-          >
-            <Ionicons name="megaphone-outline" size={14} color="#fff" />
-            <Text style={styles.broadcastBtnText}>Broadcast</Text>
-          </TouchableOpacity>
-        </View>
-        <Text style={styles.heroTitle}>Customers</Text>
-        <Text style={styles.heroSub}>Manage users and send notifications</Text>
-        <View style={styles.heroStrip}>
-          <View style={styles.heroStat}>
-            <Text style={styles.heroStatVal}>{customerCount}</Text>
-            <Text style={styles.heroStatLab}>Customers</Text>
-          </View>
-          <View style={styles.heroStripDivider} />
-          <View style={styles.heroStat}>
-            <Text style={styles.heroStatVal}>{sellerCount}</Text>
-            <Text style={styles.heroStatLab}>Sellers</Text>
-          </View>
-          <View style={styles.heroStripDivider} />
-          <View style={styles.heroStat}>
-            <Text style={styles.heroStatVal}>{users.length}</Text>
-            <Text style={styles.heroStatLab}>Total</Text>
-          </View>
-        </View>
-      </LinearGradient>
-
       <View style={styles.screenBody}>
         {/* Search */}
         <View style={styles.searchWrap}>
@@ -693,6 +665,14 @@ export const CustomersScreen = () => {
         />
       </View>
 
+      <TouchableOpacity
+        style={styles.broadcastFloatingBtn}
+        onPress={() => setShowBroadcast(true)}
+      >
+        <Ionicons name="megaphone-outline" size={18} color="#fff" />
+        <Text style={styles.broadcastFloatingBtnText}>Broadcast</Text>
+      </TouchableOpacity>
+
       <CustomerModal
         user={selectedUser}
         orders={orders}
@@ -711,95 +691,38 @@ export const CustomersScreen = () => {
 };
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.light },
-  // Hero
-  hero: {
-    paddingHorizontal: H_PAD,
-    paddingTop: 54,
-    paddingBottom: 26,
-    overflow: "hidden",
-  },
-  heroGlowOne: {
-    position: "absolute",
-    width: 180,
-    height: 180,
-    borderRadius: 90,
-    backgroundColor: "rgba(255,255,255,0.08)",
-    top: -40,
-    right: -30,
-  },
-  heroGlowTwo: {
-    position: "absolute",
-    width: 120,
-    height: 120,
-    borderRadius: 60,
-    backgroundColor: "rgba(14,165,233,0.25)",
-    bottom: -28,
-    left: -24,
+  container: {
+    flex: 1,
+    backgroundColor: colors.light,
+    paddingTop: Platform.OS === "web" ? 0 : 30,
   },
   screenBody: {
     flex: 1,
-    marginTop: -12,
+    marginTop: 0,
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
     backgroundColor: colors.light,
     paddingTop: 12,
   },
-  heroTopBar: {
+  broadcastFloatingBtn: {
+    position: "absolute",
+    right: 16,
+    bottom: Platform.OS === "web" ? 20 : 90,
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
-    marginBottom: 8,
+    gap: 6,
+    backgroundColor: colors.primary,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 24,
+    shadowColor: "#0f172a",
+    shadowOpacity: 0.18,
+    shadowOffset: { width: 0, height: 8 },
+    shadowRadius: 16,
+    elevation: 6,
+    zIndex: 10,
   },
-  heroPill: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 5,
-    backgroundColor: "rgba(255,255,255,0.2)",
-    borderRadius: 20,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-  },
-  heroPillText: { color: "#fff", fontWeight: "700", fontSize: 12 },
-  heroTitle: {
-    fontSize: 28,
-    fontWeight: "900",
-    color: "#fff",
-    letterSpacing: -0.5,
-    marginTop: 2,
-  },
-  heroSub: {
-    fontSize: 13,
-    color: "rgba(255,255,255,0.75)",
-    marginTop: 4,
-    marginBottom: 14,
-  },
-  heroStrip: {
-    flexDirection: "row",
-    backgroundColor: "rgba(0,0,0,0.15)",
-    borderRadius: 14,
-    padding: 12,
-    alignItems: "center",
-  },
-  heroStat: { flex: 1, alignItems: "center" },
-  heroStatVal: { fontSize: 18, fontWeight: "900", color: "#fff" },
-  heroStatLab: { fontSize: 10, color: "rgba(255,255,255,0.7)", marginTop: 2 },
-  heroStripDivider: {
-    width: 1,
-    height: 28,
-    backgroundColor: "rgba(255,255,255,0.2)",
-  },
-  // Broadcast button in hero top bar
-  broadcastBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 5,
-    backgroundColor: "rgba(255,255,255,0.2)",
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 20,
-  },
-  broadcastBtnText: { color: "#fff", fontWeight: "700", fontSize: 12 },
+  broadcastFloatingBtnText: { color: "#fff", fontWeight: "700", fontSize: 13 },
   // Search & filters
   searchWrap: {
     flexDirection: "row",

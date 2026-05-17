@@ -11,6 +11,7 @@ import {
   TouchableOpacity,
   View,
   ActivityIndicator,
+  Platform,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
@@ -340,93 +341,8 @@ export const OrdersScreen = () => {
     toast.success("Status Updated", `Order marked as ${status}`);
   };
 
-  // Summary stats
-  const totalRevenue = orders
-    .filter((o) => o.payment_status === "success")
-    .reduce((s, o) => s + Number(o.total || 0), 0);
-
-  const stats = [
-    {
-      label: "Total Orders",
-      value: orders.length,
-      color: colors.primary,
-      icon: "receipt-outline",
-    },
-    {
-      label: "Pending",
-      value: metrics?.pendingOrders ?? 0,
-      color: colors.warning,
-      icon: "time-outline",
-    },
-    {
-      label: "Delivered",
-      value: metrics?.completedOrders ?? 0,
-      color: colors.success,
-      icon: "checkmark-circle-outline",
-    },
-    {
-      label: "Revenue",
-      value: fmt(totalRevenue),
-      color: colors.info,
-      icon: "cash-outline",
-    },
-  ];
-
   return (
     <View style={styles.container}>
-      {/* Hero */}
-      <LinearGradient
-        colors={["#0f172a", "#1d4ed8", "#0ea5e9"]}
-        style={styles.hero}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-      >
-        <View style={styles.heroGlowOne} />
-        <View style={styles.heroGlowTwo} />
-        <View style={styles.heroTopBar}>
-          <View style={styles.heroPill}>
-            <Ionicons name="receipt-outline" size={12} color="#fff" />
-            <Text style={styles.heroPillText}>{orders.length} orders</Text>
-          </View>
-          <TouchableOpacity onPress={refresh} style={styles.heroIconBtn}>
-            <Ionicons name="sync-outline" size={20} color="#fff" />
-          </TouchableOpacity>
-        </View>
-        <Text style={styles.heroTitle}>Orders</Text>
-        <Text style={styles.heroSub}>Track and manage customer orders</Text>
-        <View style={styles.heroStrip}>
-          <View style={styles.heroStat}>
-            <Text style={styles.heroStatVal}>
-              {metrics?.pendingOrders ?? 0}
-            </Text>
-            <Text style={styles.heroStatLab}>Pending</Text>
-          </View>
-          <View style={styles.heroStripDivider} />
-          <View style={styles.heroStat}>
-            <Text style={styles.heroStatVal}>
-              {
-                orders.filter((o) =>
-                  ["processing", "packed", "shipped"].includes(o.status),
-                ).length
-              }
-            </Text>
-            <Text style={styles.heroStatLab}>Active</Text>
-          </View>
-          <View style={styles.heroStripDivider} />
-          <View style={styles.heroStat}>
-            <Text style={styles.heroStatVal}>
-              {metrics?.completedOrders ?? 0}
-            </Text>
-            <Text style={styles.heroStatLab}>Delivered</Text>
-          </View>
-          <View style={styles.heroStripDivider} />
-          <View style={styles.heroStat}>
-            <Text style={styles.heroStatVal}>{fmt(totalRevenue)}</Text>
-            <Text style={styles.heroStatLab}>Revenue</Text>
-          </View>
-        </View>
-      </LinearGradient>
-
       <View style={styles.screenBody}>
         {/* Search */}
         <View style={styles.searchWrap}>
@@ -531,84 +447,18 @@ export const OrdersScreen = () => {
 };
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.light },
-  // Hero
-  hero: {
-    paddingHorizontal: H_PAD,
-    paddingTop: 54,
-    paddingBottom: 26,
-    overflow: "hidden",
-  },
-  heroGlowOne: {
-    position: "absolute",
-    width: 180,
-    height: 180,
-    borderRadius: 90,
-    backgroundColor: "rgba(255,255,255,0.08)",
-    top: -40,
-    right: -30,
-  },
-  heroGlowTwo: {
-    position: "absolute",
-    width: 120,
-    height: 120,
-    borderRadius: 60,
-    backgroundColor: "rgba(14,165,233,0.25)",
-    bottom: -28,
-    left: -24,
+  container: {
+    flex: 1,
+    backgroundColor: colors.light,
+    paddingTop: Platform.OS === "web" ? 0 : 30,
   },
   screenBody: {
     flex: 1,
-    marginTop: -12,
+    marginTop: 0,
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
     backgroundColor: colors.light,
     paddingTop: 12,
-  },
-  heroTopBar: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    marginBottom: 8,
-  },
-  heroPill: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 5,
-    backgroundColor: "rgba(255,255,255,0.2)",
-    borderRadius: 20,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-  },
-  heroPillText: { color: "#fff", fontWeight: "700", fontSize: 12 },
-  heroIconBtn: { padding: 6 },
-  heroTitle: {
-    fontSize: 28,
-    fontWeight: "900",
-    color: "#fff",
-    letterSpacing: -0.5,
-    marginTop: 2,
-  },
-  heroSub: {
-    fontSize: 13,
-    color: "rgba(255,255,255,0.75)",
-    marginTop: 4,
-    marginBottom: 14,
-  },
-  heroStrip: {
-    flexDirection: "row",
-    backgroundColor: "rgba(0,0,0,0.15)",
-    borderRadius: 14,
-    padding: 12,
-    alignItems: "center",
-  },
-  heroStat: { flex: 1, alignItems: "center" },
-  heroStatVal: { fontSize: 16, fontWeight: "900", color: "#fff" },
-  heroStatLab: { fontSize: 10, color: "rgba(255,255,255,0.7)", marginTop: 2 },
-  heroStripDivider: {
-    width: 1,
-    height: 28,
-    backgroundColor: "rgba(255,255,255,0.2)",
   },
   searchWrap: {
     flexDirection: "row",

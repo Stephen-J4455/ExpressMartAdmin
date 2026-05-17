@@ -6,7 +6,6 @@ import {
   TextInput,
   Switch,
   TouchableOpacity,
-  Alert,
   ScrollView,
   StyleSheet,
   KeyboardAvoidingView,
@@ -16,11 +15,12 @@ import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { supabase } from "../../supabase";
 import { colors } from "../theme/colors";
+import { Alert } from "../utils/alert";
 
 export const UpdateManagerScreen = () => {
   const [app, setApp] = useState("customer");
   const [pickerOpen, setPickerOpen] = useState(false);
-  const [platformValue, setPlatformValue] = useState("");
+  const [platformValue, setPlatformValue] = useState("android");
   const [platformPickerOpen, setPlatformPickerOpen] = useState(false);
   const [latestVersion, setLatestVersion] = useState("");
   const [minVersion, setMinVersion] = useState("");
@@ -65,7 +65,7 @@ export const UpdateManagerScreen = () => {
         setForceUpdate(!!config.force_update);
         setUpdateMessage(config.update_message || "");
         setDownloadUrl(config.download_url || "");
-        setPlatformValue(config.platform || "");
+        setPlatformValue(config.platform || platformValue || "android");
       } else {
         setLatestVersion("");
         setMinVersion("");
@@ -218,7 +218,7 @@ export const UpdateManagerScreen = () => {
             style={styles.pickerWrap}
             onPress={() => setPlatformPickerOpen((s) => !s)}
           >
-            <Text style={styles.pickerText}>{platformValue || "any"}</Text>
+            <Text style={styles.pickerText}>{platformValue}</Text>
             <Ionicons
               name={platformPickerOpen ? "chevron-up" : "chevron-down"}
               size={16}
@@ -227,18 +227,18 @@ export const UpdateManagerScreen = () => {
           </TouchableOpacity>
           {platformPickerOpen && (
             <View style={styles.pickerDropdown}>
-              {["any", "android", "ios"].map((opt) => (
+              {["android", "ios"].map((opt) => (
                 <TouchableOpacity
                   key={opt}
                   onPress={() => {
-                    setPlatformValue(opt === "any" ? "" : opt);
+                    setPlatformValue(opt);
                     setPlatformPickerOpen(false);
                   }}
                   style={styles.pickerOptionWrap}
                 >
                   <Text
                     style={
-                      opt === (platformValue || "any")
+                      opt === platformValue
                         ? styles.pickerOptionSelected
                         : styles.pickerOption
                     }

@@ -10,9 +10,9 @@ import {
   TouchableOpacity,
   View,
   ActivityIndicator,
+  Platform,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { LinearGradient } from "expo-linear-gradient";
 import ColorPicker from "react-native-wheel-color-picker";
 import { useAdmin } from "../context/AdminContext";
 import { useToast } from "../context/ToastContext";
@@ -558,10 +558,6 @@ export const MarketingScreen = () => {
   const [editCategory, setEditCategory] = useState(null);
 
   const activeCoupons = coupons.filter((c) => c.is_active);
-  const expiredCoupons = coupons.filter(
-    (c) =>
-      !c.is_active || (c.expires_at && new Date(c.expires_at) < new Date()),
-  );
 
   const toggleCouponActive = async (coupon) => {
     await updateCoupon(coupon.id, { is_active: !coupon.is_active });
@@ -588,39 +584,6 @@ export const MarketingScreen = () => {
 
   return (
     <View style={styles.container}>
-      {/* Hero */}
-      <LinearGradient
-        colors={["#1e40af", "#2563eb", "#3b82f6"]}
-        style={styles.hero}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-      >
-        <View style={styles.heroTopBar}>
-          <View style={styles.heroPill}>
-            <Ionicons name="pricetag-outline" size={12} color="#fff" />
-            <Text style={styles.heroPillText}>Marketing</Text>
-          </View>
-        </View>
-        <Text style={styles.heroTitle}>Marketing</Text>
-        <Text style={styles.heroSub}>Coupons, discounts and categories</Text>
-        <View style={styles.heroStrip}>
-          <View style={styles.heroStat}>
-            <Text style={styles.heroStatVal}>{activeCoupons.length}</Text>
-            <Text style={styles.heroStatLab}>Active Coupons</Text>
-          </View>
-          <View style={styles.heroStripDivider} />
-          <View style={styles.heroStat}>
-            <Text style={styles.heroStatVal}>{expiredCoupons.length}</Text>
-            <Text style={styles.heroStatLab}>Expired</Text>
-          </View>
-          <View style={styles.heroStripDivider} />
-          <View style={styles.heroStat}>
-            <Text style={styles.heroStatVal}>{categories.length}</Text>
-            <Text style={styles.heroStatLab}>Categories</Text>
-          </View>
-        </View>
-      </LinearGradient>
-
       {/* Tabs */}
       <View style={styles.tabs}>
         {[
@@ -916,52 +879,10 @@ export const MarketingScreen = () => {
 };
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.light },
-  // Hero
-  hero: { paddingHorizontal: H_PAD, paddingTop: 54, paddingBottom: 20 },
-  heroTopBar: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    marginBottom: 8,
-  },
-  heroPill: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 5,
-    backgroundColor: "rgba(255,255,255,0.2)",
-    borderRadius: 20,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-  },
-  heroPillText: { color: "#fff", fontWeight: "700", fontSize: 12 },
-  heroTitle: {
-    fontSize: 28,
-    fontWeight: "900",
-    color: "#fff",
-    letterSpacing: -0.5,
-    marginTop: 2,
-  },
-  heroSub: {
-    fontSize: 13,
-    color: "rgba(255,255,255,0.75)",
-    marginTop: 4,
-    marginBottom: 14,
-  },
-  heroStrip: {
-    flexDirection: "row",
-    backgroundColor: "rgba(0,0,0,0.15)",
-    borderRadius: 14,
-    padding: 12,
-    alignItems: "center",
-  },
-  heroStat: { flex: 1, alignItems: "center" },
-  heroStatVal: { fontSize: 18, fontWeight: "900", color: "#fff" },
-  heroStatLab: { fontSize: 10, color: "rgba(255,255,255,0.7)", marginTop: 2 },
-  heroStripDivider: {
-    width: 1,
-    height: 28,
-    backgroundColor: "rgba(255,255,255,0.2)",
+  container: {
+    flex: 1,
+    backgroundColor: colors.light,
+    paddingTop: Platform.OS === "web" ? 0 : 30,
   },
   tabs: {
     flexDirection: "row",
@@ -969,7 +890,7 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     padding: 6,
     marginHorizontal: H_PAD,
-    marginTop: -12,
+    marginTop: 12,
     marginBottom: 8,
     borderWidth: 1,
     borderColor: "#E2E8F0",

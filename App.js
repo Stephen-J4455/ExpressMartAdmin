@@ -24,6 +24,7 @@ import { supabase } from "./supabase";
 import { AdminProvider, useAdmin } from "./src/context/AdminContext";
 import { ToastProvider } from "./src/context/ToastContext";
 import { NotificationProvider } from "./src/context/NotificationContext";
+import { CustomAlertProvider } from "./src/context/CustomAlertContext";
 import { colors } from "./src/theme/colors";
 import { useResponsive } from "./src/hooks/useResponsive";
 import { WebSidebar } from "./src/components/WebSidebar";
@@ -789,61 +790,63 @@ export default function App() {
   return (
     <SafeAreaProvider>
       <ToastProvider>
-        <AdminProvider>
-          <NotificationProvider userId={user?.id}>
-            <NavigationContainer theme={navTheme} linking={linking}>
-              <StatusBar style="dark" />
-              {user && userRole === "admin" ? (
-                <View style={styles.appBackground}>
-                  <AdminTabs onLogout={handleLogout} />
-                </View>
-              ) : user && userRole && userRole !== "admin" ? (
-                <View style={styles.scene}>
-                  <View style={styles.center}>
-                    <Ionicons
-                      name="lock-closed-outline"
-                      size={80}
-                      color={colors.danger}
-                    />
-                    <Text style={styles.title}>Access Denied</Text>
-                    <Text style={styles.subtitle}>
-                      Your account ({userRole}) does not have admin access.
-                    </Text>
-                    <TouchableOpacity
-                      style={styles.button}
-                      onPress={handleLogout}
-                    >
-                      <Text style={styles.buttonText}>Sign Out</Text>
-                    </TouchableOpacity>
+        <CustomAlertProvider>
+          <AdminProvider>
+            <NotificationProvider userId={user?.id}>
+              <NavigationContainer theme={navTheme} linking={linking}>
+                <StatusBar style="dark" />
+                {user && userRole === "admin" ? (
+                  <View style={styles.appBackground}>
+                    <AdminTabs onLogout={handleLogout} />
                   </View>
-                </View>
-              ) : user ? (
-                <View style={styles.scene}>
-                  <View style={styles.center}>
-                    <Ionicons
-                      name="alert-circle-outline"
-                      size={80}
-                      color={colors.warning}
-                    />
-                    <Text style={styles.title}>Profile Not Found</Text>
-                    <Text style={styles.subtitle}>
-                      Your profile could not be verified. Please contact a
-                      system administrator.
-                    </Text>
-                    <TouchableOpacity
-                      style={styles.button}
-                      onPress={handleLogout}
-                    >
-                      <Text style={styles.buttonText}>Sign Out</Text>
-                    </TouchableOpacity>
+                ) : user && userRole && userRole !== "admin" ? (
+                  <View style={styles.scene}>
+                    <View style={styles.center}>
+                      <Ionicons
+                        name="lock-closed-outline"
+                        size={80}
+                        color={colors.danger}
+                      />
+                      <Text style={styles.title}>Access Denied</Text>
+                      <Text style={styles.subtitle}>
+                        Your account ({userRole}) does not have admin access.
+                      </Text>
+                      <TouchableOpacity
+                        style={styles.button}
+                        onPress={handleLogout}
+                      >
+                        <Text style={styles.buttonText}>Sign Out</Text>
+                      </TouchableOpacity>
+                    </View>
                   </View>
-                </View>
-              ) : (
-                <AuthNavigator />
-              )}
-            </NavigationContainer>
-          </NotificationProvider>
-        </AdminProvider>
+                ) : user ? (
+                  <View style={styles.scene}>
+                    <View style={styles.center}>
+                      <Ionicons
+                        name="alert-circle-outline"
+                        size={80}
+                        color={colors.warning}
+                      />
+                      <Text style={styles.title}>Profile Not Found</Text>
+                      <Text style={styles.subtitle}>
+                        Your profile could not be verified. Please contact a
+                        system administrator.
+                      </Text>
+                      <TouchableOpacity
+                        style={styles.button}
+                        onPress={handleLogout}
+                      >
+                        <Text style={styles.buttonText}>Sign Out</Text>
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                ) : (
+                  <AuthNavigator />
+                )}
+              </NavigationContainer>
+            </NotificationProvider>
+          </AdminProvider>
+        </CustomAlertProvider>
       </ToastProvider>
     </SafeAreaProvider>
   );

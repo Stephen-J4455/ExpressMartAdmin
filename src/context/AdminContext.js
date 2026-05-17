@@ -7,11 +7,11 @@ import {
   useState,
   useRef,
 } from "react";
-import { Alert } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { supabase } from "../../supabase";
 import notificationService from "../services/notificationService";
 import { colors } from "../theme/colors";
+import { Alert } from "../utils/alert";
 
 const AdminContext = createContext();
 

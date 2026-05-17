@@ -16,7 +16,6 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import { useAdmin } from "../context/AdminContext";
 import { colors } from "../theme/colors";
-import { SectionHeader } from "../components/SectionHeader";
 import { ModerationCard } from "../components/ModerationCard";
 import { StatusPill } from "../components/StatusPill";
 import { useResponsive } from "../hooks/useResponsive";
@@ -93,112 +92,108 @@ export const ModerationScreen = () => {
   return (
     <ScrollView
       style={styles.container}
-      contentContainerStyle={{ paddingBottom: 100 }}
+      contentContainerStyle={styles.contentContainer}
       refreshControl={
         <RefreshControl refreshing={loading} onRefresh={refresh} />
       }
     >
-      <SectionHeader
-        title="Moderation"
-        subtitle="Curate and approve submissions"
-      />
-
-      <View style={styles.premiumToolbar}>
-        <View style={styles.metricsHeader}>
-          <Text style={styles.toolbarTitle}>Submissions</Text>
-          <View style={styles.selectionPill}>
-            <Text style={styles.selectionText}>
-              {selectedIds.length} Selected
-            </Text>
-          </View>
-        </View>
-
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.metricsContainer}
-        >
-          {statusBreakdown.map(({ key, total }) => (
-            <Pressable
-              key={key}
-              style={[
-                styles.metricCard,
-                filter === key && styles.metricCardActive,
-              ]}
-              onPress={() => setFilter(key)}
-            >
-              <Text
-                style={[
-                  styles.metricLabel,
-                  filter === key && styles.metricLabelActive,
-                ]}
-              >
-                {key}
-              </Text>
-              <Text
-                style={[
-                  styles.metricValue,
-                  filter === key && styles.metricValueActive,
-                ]}
-              >
-                {total}
-              </Text>
-            </Pressable>
-          ))}
-        </ScrollView>
-
-        <View style={styles.actionRow}>
-          <TouchableOpacity
-            style={[
-              styles.toolbarAction,
-              styles.primaryAction,
-              !selectedIds.length && styles.actionDisabled,
-            ]}
-            onPress={() => bulkUpdate("active")}
-            disabled={!selectedIds.length}
-          >
-            <Ionicons name="checkmark-circle" size={18} color="#fff" />
-            <Text style={styles.actionLabel}>Approve All</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[
-              styles.toolbarAction,
-              styles.dangerAction,
-              !selectedIds.length && styles.actionDisabled,
-            ]}
-            onPress={() => bulkUpdate("rejected")}
-            disabled={!selectedIds.length}
-          >
-            <Ionicons name="close-circle" size={18} color="#fff" />
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[
-              styles.toolbarAction,
-              styles.secondaryAction,
-              !selectedIds.length && styles.actionDisabled,
-            ]}
-            onPress={bulkFeature}
-            disabled={!selectedIds.length}
-          >
-            <Ionicons name="star" size={18} color={colors.primary} />
-          </TouchableOpacity>
-
-          {selectedIds.length > 0 && (
-            <TouchableOpacity style={styles.clearBtn} onPress={clearSelection}>
-              <Text style={styles.clearText}>Clear</Text>
-            </TouchableOpacity>
-          )}
+      <View style={styles.searchRow}>
+        <View style={styles.searchInputContainer}>
+          <Ionicons
+            name="search-outline"
+            size={20}
+            color={colors.muted}
+            style={styles.searchIcon}
+          />
+          <TextInput
+            placeholder="Search products or vendors..."
+            style={styles.searchInput}
+            value={query}
+            onChangeText={setQuery}
+            placeholderTextColor="#94A3B8"
+          />
         </View>
       </View>
 
-      <TextInput
-        placeholder="Search titles or vendors"
-        style={styles.input}
-        value={query}
-        onChangeText={setQuery}
-      />
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        style={styles.statusFiltersScroll}
+      >
+        <View style={styles.statusFilters}>
+          {filters.map(({ key, label }) => {
+            const total = statusBreakdown.find((item) => item.key === key)?.total || 0;
+            return (
+              <Pressable
+                key={key}
+                style={[
+                  styles.statusChip,
+                  filter === key && styles.statusChipActive,
+                ]}
+                onPress={() => setFilter(key)}
+              >
+                <Text
+                  style={[
+                    styles.statusChipText,
+                    filter === key && styles.statusChipTextActive,
+                  ]}
+                >
+                  {label} ({total})
+                </Text>
+              </Pressable>
+            );
+          })}
+        </View>
+      </ScrollView>
+
+      <View style={styles.headerActionRow}>
+        {selectedIds.length > 0 ? (
+          <Pressable onPress={clearSelection}>
+            <Text style={styles.clearText}>Clear selection</Text>
+          </Pressable>
+        ) : (
+          <Text style={styles.selectionCount}>{selectedIds.length} selected</Text>
+        )}
+      </View>
+
+      <View style={styles.actionRow}>
+        <TouchableOpacity
+          style={[
+            styles.toolbarAction,
+            styles.primaryAction,
+            !selectedIds.length && styles.actionDisabled,
+          ]}
+          onPress={() => bulkUpdate("active")}
+          disabled={!selectedIds.length}
+        >
+          <Ionicons name="checkmark-circle" size={18} color="#fff" />
+          <Text style={styles.actionLabel}>Approve All</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[
+            styles.toolbarAction,
+            styles.dangerAction,
+            !selectedIds.length && styles.actionDisabled,
+          ]}
+          onPress={() => bulkUpdate("rejected")}
+          disabled={!selectedIds.length}
+        >
+          <Ionicons name="close-circle" size={18} color="#fff" />
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[
+            styles.toolbarAction,
+            styles.secondaryAction,
+            !selectedIds.length && styles.actionDisabled,
+          ]}
+          onPress={bulkFeature}
+          disabled={!selectedIds.length}
+        >
+          <Ionicons name="star" size={18} color={colors.primary} />
+        </TouchableOpacity>
+      </View>
 
       <FlatList
         data={items}
@@ -209,7 +204,10 @@ export const ModerationScreen = () => {
         contentContainerStyle={{ gap: 16 }}
         columnWrapperStyle={cardColumns > 1 ? { gap: 16 } : undefined}
         ListEmptyComponent={
-          <Text style={styles.empty}>Nothing matches your filters.</Text>
+          <View style={styles.emptyState}>
+            <Ionicons name="search-outline" size={44} color={colors.muted} />
+            <Text style={styles.empty}>Nothing matches your filters.</Text>
+          </View>
         }
         renderItem={({ item }) => (
           <View style={{ flex: 1 }}>
@@ -716,99 +714,84 @@ export const ModerationScreen = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.light,
-    padding: 16,
-    paddingTop: Platform.OS === "android" ? 35 : 0,
-  },
-  input: {
-    backgroundColor: "#fff",
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: "#E4E8F0",
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    marginBottom: 16,
-  },
-  premiumToolbar: {
-    backgroundColor: "#fff",
-    borderRadius: 24,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: "#F1F5F9",
-    marginBottom: 16,
-    shadowColor: colors.dark,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.03,
-    shadowRadius: 10,
-    elevation: 2,
-  },
-  metricsHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 16,
-  },
-  toolbarTitle: {
-    fontSize: 14,
-    fontWeight: "800",
-    color: colors.dark,
-    textTransform: "uppercase",
-    letterSpacing: 0.5,
-  },
-  selectionPill: {
-    backgroundColor: colors.primary + "10",
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 8,
-  },
-  selectionText: {
-    fontSize: 11,
-    fontWeight: "700",
-    color: colors.primary,
-  },
-  metricsContainer: {
-    gap: 10,
-    paddingRight: 10,
-  },
-  metricCard: {
     backgroundColor: "#F8FAFC",
+  },
+  contentContainer: {
     paddingHorizontal: 16,
-    paddingVertical: 10,
+    paddingTop: 40,
+    paddingBottom: 100,
+  },
+  searchRow: {
+    flexDirection: "row",
+    gap: 10,
+    marginBottom: 16,
+  },
+  searchInputContainer: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#fff",
     borderRadius: 14,
     borderWidth: 1,
     borderColor: "#F1F5F9",
-    minWidth: 90,
+    paddingHorizontal: 12,
   },
-  metricCardActive: {
-    backgroundColor: colors.dark,
-    borderColor: colors.dark,
+  searchIcon: {
+    marginRight: 8,
   },
-  metricLabel: {
-    fontSize: 10,
+  searchInput: {
+    flex: 1,
+    paddingVertical: 12,
+    fontSize: 15,
+    color: colors.dark,
+    fontWeight: "500",
+  },
+  statusFiltersScroll: {
+    marginBottom: 16,
+    marginHorizontal: -16,
+    paddingHorizontal: 16,
+  },
+  statusFilters: {
+    flexDirection: "row",
+    gap: 8,
+    paddingRight: 16,
+  },
+  statusChip: {
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 12,
+    backgroundColor: "#fff",
+    borderWidth: 1,
+    borderColor: "#F1F5F9",
+  },
+  statusChipActive: {
+    backgroundColor: colors.primary,
+    borderColor: colors.primary,
+  },
+  statusChipText: {
+    fontSize: 13,
     color: colors.muted,
     fontWeight: "700",
-    textTransform: "uppercase",
-    marginBottom: 2,
   },
-  metricLabelActive: {
-    color: "rgba(255,255,255,0.6)",
-  },
-  metricValue: {
-    fontSize: 18,
-    fontWeight: "800",
-    color: colors.dark,
-  },
-  metricValueActive: {
+  statusChipTextActive: {
     color: "#fff",
+  },
+  headerActionRow: {
+    flexDirection: "row",
+    justifyContent: "flex-end",
+    marginBottom: 12,
+  },
+  selectionCount: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: colors.muted,
   },
   actionRow: {
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
-    marginTop: 16,
-    paddingTop: 16,
-    borderTopWidth: 1,
-    borderTopColor: "#F1F5F9",
+    marginTop: -4,
+    marginBottom: 16,
   },
   toolbarAction: {
     flexDirection: "row",
@@ -841,17 +824,20 @@ const styles = StyleSheet.create({
   actionDisabled: {
     opacity: 0.5,
   },
-  clearBtn: {
-    paddingHorizontal: 8,
-  },
   clearText: {
-    fontSize: 12,
-    color: colors.muted,
+    fontSize: 13,
+    color: colors.primary,
     fontWeight: "700",
+  },
+  emptyState: {
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 56,
+    gap: 10,
   },
   empty: {
     color: colors.muted,
-    marginTop: 36,
+    fontWeight: "600",
   },
   modalContainer: {
     flex: 1,

@@ -12,12 +12,15 @@ import {
   Platform,
   TouchableOpacity,
   KeyboardAvoidingView,
+  StatusBar,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
 import DateTimePicker from "@react-native-community/datetimepicker";
+import ColorPicker from "react-native-wheel-color-picker";
 import { supabase } from "../../supabase";
 import { colors } from "../theme/colors";
+import { Alert } from "../utils/alert";
 
 const { width } = Dimensions.get("window");
 
@@ -71,19 +74,6 @@ const parsePlacementArray = (placement) => {
     .map((p) => p.trim())
     .filter(Boolean);
 };
-
-const PRESET_COLORS = [
-  "#FFFFFF",
-  "#000000",
-  "#2563EB",
-  "#EF4444",
-  "#F59E0B",
-  "#10B981",
-  "#6366F1",
-  "#EC4899",
-  "#8B5CF6",
-  "#64748B",
-];
 
 const CTA_PLATFORMS = [
   {
@@ -282,7 +272,7 @@ export const AdEditor = ({ initialValues, onSave, onCancel, loading }) => {
     text_color: "#1E293B",
     accent_color: colors.primary,
     discount_color: colors.danger,
-    border_radius: 18,
+    border_radius: 30,
     is_active: true,
     show_on_web: true,
     show_on_mobile: true,
@@ -345,7 +335,7 @@ export const AdEditor = ({ initialValues, onSave, onCancel, loading }) => {
         setLocalImageUri(result.assets[0].uri);
       }
     } catch (error) {
-      alert("Error picking image: " + error.message);
+      Alert.alert("Error", "Error picking image: " + error.message);
     }
   };
 
@@ -449,7 +439,7 @@ export const AdEditor = ({ initialValues, onSave, onCancel, loading }) => {
 
       await onSave(infoToSave);
     } catch (error) {
-      alert("Save failed: " + error.message);
+      Alert.alert("Save failed", error.message);
     } finally {
       setUploading(false);
     }
@@ -920,7 +910,7 @@ export const AdEditor = ({ initialValues, onSave, onCancel, loading }) => {
           <TextInput
             style={[
               styles.input,
-              { width: 60, height: 40, textAlign: "center" },
+              styles.radiusInput,
             ]}
             value={String(formData.border_radius)}
             onChangeText={(t) => updateField("border_radius", Number(t) || 0)}
@@ -931,28 +921,24 @@ export const AdEditor = ({ initialValues, onSave, onCancel, loading }) => {
 
       <FormRow label="Brand Palette">
         <View style={styles.paletteContainer}>
-          <ColorControl
-            label="Surface"
-            color={formData.background_color}
-            onSelect={(c) => updateField("background_color", c)}
-          />
-          <ColorControl
-            label="Text"
-            color={formData.text_color}
-            onSelect={(c) => updateField("text_color", c)}
-          />
-          <ColorControl
-            label="Accent"
-            color={formData.accent_color}
-            onSelect={(c) => updateField("accent_color", c)}
-          />
-          <ColorControl
-            label="Promo"
-            color={formData.discount_color}
-            onSelect={(c) => updateField("discount_color", c)}
-          />
+          {[
+            { label: "Surface", key: "background_color" },
+            { label: "Text", key: "text_color" },
+            { label: "Accent", key: "accent_color" },
+            { label: "Promo", key: "discount_color" },
+          ].map((item, index, list) => (
+            <View key={item.key}>
+              <ColorControl
+                label={item.label}
+                color={formData[item.key]}
+                onSelect={(c) => updateField(item.key, c)}
+              />
+              {index < list.length - 1 ? <View style={styles.paletteDivider} /> : null}
+            </View>
+          ))}
         </View>
       </FormRow>
+      <View style={styles.designTabBottomSpace} />
     </View>
   );
 
@@ -1193,26 +1179,35 @@ export const AdEditor = ({ initialValues, onSave, onCancel, loading }) => {
 const ColorControl = ({ label, color, onSelect }) => {
   const [showPresets, setShowPresets] = useState(false);
   return (
-    <View style={styles.colorControl}>
-      <Text style={styles.colorLabel}>{label}</Text>
-      <TouchableOpacity
-        style={[styles.colorTrigger, { backgroundColor: color }]}
-        onPress={() => setShowPresets(!showPresets)}
-      >
-        {color === "#FFFFFF" && <View style={styles.colorBorder} />}
-      </TouchableOpacity>
+    <View style={[styles.colorControl, showPresets && styles.colorControlActive]}>
+      <View style={styles.colorRow}>
+        <View>
+          <Text style={styles.colorLabel}>{label}</Text>
+          <Text style={styles.colorValue}>{String(color || "").toUpperCase()}</Text>
+        </View>
+        <TouchableOpacity
+          style={styles.colorAction}
+          onPress={() => setShowPresets(!showPresets)}
+        >
+          <View style={[styles.colorTrigger, { backgroundColor: color }]}>
+            {color === "#FFFFFF" && <View style={styles.colorBorder} />}
+          </View>
+          <Text style={styles.colorActionText}>Pick</Text>
+        </TouchableOpacity>
+      </View>
       {showPresets && (
         <View style={styles.presetsPopup}>
-          {PRESET_COLORS.map((c) => (
-            <TouchableOpacity
-              key={c}
-              style={[styles.presetDot, { backgroundColor: c }]}
-              onPress={() => {
-                onSelect(c);
-                setShowPresets(false);
-              }}
+          <View style={styles.colorWheelWrap}>
+            <ColorPicker
+              color={color}
+              onColorChangeComplete={onSelect}
+              thumbSize={18}
+              sliderSize={16}
+              row={false}
+              swatches={false}
+              style={styles.colorWheel}
             />
-          ))}
+          </View>
         </View>
       )}
     </View>
@@ -1229,7 +1224,7 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     alignItems: "center",
     paddingHorizontal: 16,
-    paddingTop: Platform.OS === "ios" ? 10 : 16,
+    paddingTop: Platform.OS === "ios" ? 52 : (StatusBar.currentHeight || 0) + 12,
     paddingBottom: 16,
     backgroundColor: "#fff",
     borderBottomWidth: 1,
@@ -1409,6 +1404,13 @@ const styles = StyleSheet.create({
     fontSize: 15,
     color: colors.dark,
   },
+  radiusInput: {
+    width: 60,
+    height: 40,
+    textAlign: "center",
+    paddingHorizontal: 0,
+    paddingVertical: 0,
+  },
   textArea: {
     height: 100,
     textAlignVertical: "top",
@@ -1493,60 +1495,102 @@ const styles = StyleSheet.create({
     backgroundColor: "#F1F5F9",
   },
   paletteContainer: {
-    flexDirection: "row",
-    justifyContent: "space-between",
     backgroundColor: "#fff",
     borderRadius: 16,
-    padding: 16,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
     borderWidth: 1,
     borderColor: "#E2E8F0",
+    overflow: "visible",
+    gap: 2,
+  },
+  paletteDivider: {
+    height: 1,
+    backgroundColor: "#F1F5F9",
   },
   colorControl: {
-    alignItems: "center",
-    gap: 6,
     position: "relative",
+    paddingVertical: 10,
+  },
+  colorRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  colorControlActive: {
+    zIndex: 200,
+    elevation: 20,
   },
   colorLabel: {
-    fontSize: 10,
+    fontSize: 12,
     fontWeight: "700",
     color: colors.muted,
     textTransform: "uppercase",
   },
+  colorValue: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: colors.dark,
+    marginTop: 4,
+    letterSpacing: 0.4,
+  },
+  colorAction: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    backgroundColor: "#F8FAFC",
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+  },
   colorTrigger: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+    width: 26,
+    height: 26,
+    borderRadius: 13,
     shadowColor: "#000",
     shadowOpacity: 0.1,
     shadowRadius: 4,
     elevation: 2,
   },
+  colorActionText: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: colors.primary,
+  },
   colorBorder: {
     ...StyleSheet.absoluteFillObject,
-    borderRadius: 22,
+    borderRadius: 13,
     borderWidth: 1,
     borderColor: "#E2E8F0",
   },
   presetsPopup: {
     position: "absolute",
-    top: 60,
+    top: 52,
+    right: 0,
     backgroundColor: "#fff",
     borderRadius: 12,
     padding: 8,
     flexDirection: "row",
     flexWrap: "wrap",
     gap: 6,
-    width: 140,
-    boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
+    width: 200,
     zIndex: 100,
+    shadowColor: "#0f172a",
+    shadowOpacity: 0.18,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 12,
   },
-  presetDot: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: "#f0f0f0",
+  colorWheelWrap: {
+    width: "100%",
+    height: 260,
   },
+  colorWheel: {
+    flex: 1,
+  },
+  designTabBottomSpace: { height: 220 },
   datePickerTrigger: {
     flexDirection: "row",
     alignItems: "center",

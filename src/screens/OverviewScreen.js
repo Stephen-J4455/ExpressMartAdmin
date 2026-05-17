@@ -15,6 +15,7 @@ import { LineChart } from "react-native-gifted-charts";
 import { useAdmin } from "../context/AdminContext";
 import { colors } from "../theme/colors";
 import { StatusPill } from "../components/StatusPill";
+import { StatCard } from "../components/StatCard";
 import { useResponsive } from "../hooks/useResponsive";
 
 const CARD_GAP = 12;
@@ -33,32 +34,6 @@ const formatSellerRating = (rating) => {
 };
 
 // ─── Sub-components ──────────────────────────────────────────────────────────
-
-const KpiTile = ({
-  icon,
-  iconColor,
-  value,
-  label,
-  subText,
-  borderColor,
-  tileWidth,
-}) => {
-  const accent = borderColor || colors.primary;
-  return (
-    <View style={[styles.kpiTile, { borderColor: accent, width: tileWidth }]}>
-    <View style={styles.kpiTop}>
-      <View style={[styles.kpiIconWrap, { backgroundColor: iconColor + "20" }]}>
-        <Ionicons name={icon} size={18} color={iconColor} />
-      </View>
-      <View style={[styles.kpiBadge, { backgroundColor: accent + "1A" }]}>
-        <Text style={[styles.kpiBadgeText, { color: accent }]}>{label}</Text>
-      </View>
-    </View>
-    <Text style={styles.kpiValue}>{value}</Text>
-    {subText ? <Text style={styles.kpiSub}>{subText}</Text> : null}
-  </View>
-  );
-};
 
 const RevenueRow = ({ dot, label, value, valueColor, bold }) => (
   <View style={styles.revRow}>
@@ -145,7 +120,7 @@ export const OverviewScreen = () => {
   } = useAdmin();
   const { gridColumns, cardColumns, getItemWidth, horizontalPadding, isWide } =
     useResponsive();
-  const TILE_W = getItemWidth(gridColumns, horizontalPadding, CARD_GAP);
+  const KPI_W = getItemWidth(gridColumns, horizontalPadding, CARD_GAP);
   const CHIP_W = getItemWidth(cardColumns, horizontalPadding, CARD_GAP);
 
   const today = new Date().toLocaleDateString("en-GB", {
@@ -267,42 +242,45 @@ export const OverviewScreen = () => {
       {/* ── KPI GRID ── */}
       <SectionLabel title="Key Metrics" />
       <View style={styles.kpiGrid}>
-        <KpiTile
-          tileWidth={TILE_W}
-          icon="people-outline"
-          iconColor={colors.primary}
-          borderColor={colors.primary}
-          value={customers.length || metrics.totalUsers || 0}
-          label="Total Customers"
-          subText="ExpressMart users"
-        />
-        <KpiTile
-          tileWidth={TILE_W}
-          icon="storefront-outline"
-          iconColor={colors.success}
-          borderColor={colors.success}
-          value={metrics.vendors || 0}
-          label="Active Vendors"
-          subText="Express-Store sellers"
-        />
-        <KpiTile
-          tileWidth={TILE_W}
-          icon="trending-up-outline"
-          iconColor="#06b6d4"
-          borderColor="#06b6d4"
-          value={fmt(metrics.netPlatformRevenue)}
-          label="Net Profit"
-          subText={`Today: ${fmt(metrics.platformEarningsToday)}`}
-        />
-        <KpiTile
-          tileWidth={TILE_W}
-          icon="cube-outline"
-          iconColor={colors.warning}
-          borderColor={colors.warning}
-          value={metrics.activeProducts || products.filter((p) => p.status === "active").length}
-          label="Total Active Products"
-          subText="Currently listed"
-        />
+        <View style={[styles.kpiStatCell, { width: KPI_W }]}>
+          <StatCard
+            label="Total Customers"
+            value={customers.length || metrics.totalUsers || 0}
+            hint="ExpressMart users"
+            trend="+2.8%"
+            tone="primary"
+          />
+        </View>
+        <View style={[styles.kpiStatCell, { width: KPI_W }]}>
+          <StatCard
+            label="Active Vendors"
+            value={metrics.vendors || 0}
+            hint="Express-Store sellers"
+            trend="+1.4%"
+            tone="success"
+          />
+        </View>
+        <View style={[styles.kpiStatCell, { width: KPI_W }]}>
+          <StatCard
+            label="Net Profit"
+            value={fmt(metrics.netPlatformRevenue)}
+            hint={`Today: ${fmt(metrics.platformEarningsToday)}`}
+            trend="+3.6%"
+            tone="info"
+          />
+        </View>
+        <View style={[styles.kpiStatCell, { width: KPI_W }]}>
+          <StatCard
+            label="Active Products"
+            value={
+              metrics.activeProducts ||
+              products.filter((p) => p.status === "active").length
+            }
+            hint="Currently listed"
+            trend="+0.9%"
+            tone="warning"
+          />
+        </View>
       </View>
       <AreaTrendCard
         title="Key Metrics Trend"
@@ -747,57 +725,15 @@ const styles = StyleSheet.create({
   },
   sectionBadgeText: { color: colors.primary, fontSize: 11, fontWeight: "800" },
 
-  // KPI tiles
+  // KPI cards
   kpiGrid: {
     flexDirection: "row",
     flexWrap: "wrap",
     gap: CARD_GAP,
     marginBottom: 4,
   },
-  kpiTile: {
-    backgroundColor: "#fff",
-    borderRadius: 18,
-    padding: 16,
-    borderWidth: 1,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.04,
-    shadowRadius: 8,
-    elevation: 2,
-  },
-  kpiTop: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    marginBottom: 10,
-  },
-  kpiIconWrap: {
-    width: 36,
-    height: 36,
-    borderRadius: 10,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  kpiBadge: {
-    borderRadius: 999,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-  },
-  kpiBadgeText: {
-    fontSize: 10,
-    fontWeight: "800",
-  },
-  kpiValue: {
-    fontSize: 26,
-    fontWeight: "900",
-    color: colors.dark,
-    letterSpacing: -1,
-  },
-  kpiSub: {
-    fontSize: 11,
-    color: colors.muted,
-    marginTop: 3,
-    fontWeight: "500",
+  kpiStatCell: {
+    maxWidth: "100%",
   },
   areaCard: {
     backgroundColor: "#fff",

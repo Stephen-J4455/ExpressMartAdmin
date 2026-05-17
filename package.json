@@ -25,7 +25,6 @@
     "expo-linking": "^55.0.15",
     "expo-notifications": "^55.0.23",
     "expo-status-bar": "~55.0.6",
-    "expo-web-browser": "^55.0.16",
     "install": "^0.13.0",
     "react": "19.2.0",
     "react-dom": "19.2.0",

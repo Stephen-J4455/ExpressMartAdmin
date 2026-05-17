@@ -7,11 +7,11 @@ import {
     Image,
     TouchableOpacity,
     RefreshControl,
-    Alert,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { supabase } from "../../supabase";
 import { colors } from "../theme/colors";
+import { Alert } from "../utils/alert";
 
 export const StatusModerationScreen = () => {
     const [statuses, setStatuses] = useState([]);

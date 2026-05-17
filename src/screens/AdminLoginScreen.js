@@ -6,33 +6,32 @@ import {
   TouchableOpacity,
   StyleSheet,
   ActivityIndicator,
-  Image,
   ScrollView,
   KeyboardAvoidingView,
   Platform,
+  useWindowDimensions,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { supabase } from "../../supabase";
 import { colors } from "../theme/colors";
-import * as WebBrowser from "expo-web-browser";
 import { useToast } from "../context/ToastContext";
-
-WebBrowser.maybeCompleteAuthSession();
+import { Alert } from "../utils/alert";
 
 export default function AdminLoginScreen({ navigation }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
-  const [googleLoading, setGoogleLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const { width } = useWindowDimensions();
+  const isLargeScreen = width >= 1024;
   const toast = useToast(); // Assuming ToastProvider surrounds this in App.js now
 
   const handleLogin = async () => {
     if (!email || !password) {
       if (toast) toast.error("Please fill in all fields");
-      else alert("Please fill in all fields");
+      else Alert.alert("Missing fields", "Please fill in all fields");
       return;
     }
 
@@ -45,75 +44,34 @@ export default function AdminLoginScreen({ navigation }) {
 
       if (error) {
         if (toast) toast.error("Login Failed: " + error.message);
-        else alert("Login Failed: " + error.message);
+        else Alert.alert("Login Failed", error.message);
       }
     } catch (error) {
       if (toast) toast.error("Error: " + error.message);
-      else alert("Error: " + error.message);
+      else Alert.alert("Error", error.message);
     } finally {
       setLoading(false);
     }
   };
 
-  const handleGoogleLogin = async () => {
-    setGoogleLoading(true);
-    try {
-      if (Platform.OS === "web") {
-        // On web, Supabase performs a full-page redirect to Google and then
-        // back to the app. The deep-link scheme 'expressmartadmin://' is only
-        // valid for native; on web we redirect back to the current origin.
-        const { error } = await supabase.auth.signInWithOAuth({
-          provider: "google",
-          options: {
-            redirectTo: window.location.origin,
-          },
-        });
-        if (error) throw error;
-        // Browser will navigate away to Google — nothing else to do here.
-      } else {
-        // On iOS/Android use an in-app browser session so the deep-link
-        // redirect can be intercepted and the session parsed.
-        const { data, error } = await supabase.auth.signInWithOAuth({
-          provider: "google",
-          options: {
-            redirectTo: "expressmartadmin://",
-            skipBrowserRedirect: true,
-          },
-        });
-        if (error) throw error;
-        if (data?.url) {
-          const result = await WebBrowser.openAuthSessionAsync(
-            data.url,
-            "expressmartadmin://",
-          );
-          if (result.type === "success" && result.url) {
-            const { error: sessionError } =
-              await supabase.auth.getSessionFromUrl(result.url);
-            if (sessionError) throw sessionError;
-          }
-        }
-      }
-    } catch (error) {
-      if (toast) toast.error(error.message || "Google Sign-In failed");
-      else alert(error.message);
-    } finally {
-      setGoogleLoading(false);
-    }
-  };
-
   return (
-    <LinearGradient
-      colors={[colors.light, colors.surface]}
-      style={styles.container}
-      start={{ x: 0, y: 0 }}
-      end={{ x: 0, y: 1 }}
-    >
-      <SafeAreaView style={styles.safeArea}>
-        <KeyboardAvoidingView
-          behavior={Platform.OS === "ios" ? "padding" : "height"}
-          style={{ flex: 1 }}
+    <SafeAreaView style={styles.container}>
+      <View style={styles.bgCircle1} />
+      <View style={styles.bgCircle2} />
+      <View style={styles.bgCircle3} />
+      <View style={styles.bgCircle4} />
+      <View style={styles.bgCircle5} />
+      <View style={styles.bgCircle6} />
+      <KeyboardAvoidingView
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        style={styles.safeArea}
+      >
+        <ScrollView
+          contentContainerStyle={[styles.content, isLargeScreen && styles.contentLarge]}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
         >
-          <ScrollView contentContainerStyle={styles.content}>
+          <View style={[styles.formCard, isLargeScreen && styles.formCardLarge]}>
             <View style={styles.logoContainer}>
               <Ionicons
                 name="shield-checkmark"
@@ -195,53 +153,106 @@ export default function AdminLoginScreen({ navigation }) {
                 )}
               </LinearGradient>
             </TouchableOpacity>
-
-            <View style={styles.divider}>
-              <View style={styles.dividerLine} />
-              <Text style={styles.dividerText}>OR</Text>
-              <View style={styles.dividerLine} />
-            </View>
-
-            <TouchableOpacity
-              style={[styles.googleButton, googleLoading && { opacity: 0.7 }]}
-              onPress={handleGoogleLogin}
-              disabled={googleLoading || loading}
-            >
-              {googleLoading ? (
-                <ActivityIndicator color={colors.dark} />
-              ) : (
-                <>
-                  <Ionicons
-                    name="logo-google"
-                    size={20}
-                    color={colors.dark}
-                    style={{ marginRight: 10 }}
-                  />
-                  <Text style={styles.googleButtonText}>
-                    Continue with Google
-                  </Text>
-                </>
-              )}
-            </TouchableOpacity>
-          </ScrollView>
-        </KeyboardAvoidingView>
-      </SafeAreaView>
-    </LinearGradient>
+          </View>
+        </ScrollView>
+      </KeyboardAvoidingView>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    backgroundColor: colors.background || colors.light,
   },
   safeArea: {
     flex: 1,
+  },
+  bgCircle1: {
+    position: "absolute",
+    width: 220,
+    height: 220,
+    borderRadius: 110,
+    backgroundColor: `${colors.primary}30`,
+    top: -60,
+    right: -60,
+  },
+  bgCircle2: {
+    position: "absolute",
+    width: 160,
+    height: 160,
+    borderRadius: 80,
+    backgroundColor: `${colors.accent}28`,
+    top: 180,
+    left: -50,
+  },
+  bgCircle3: {
+    position: "absolute",
+    width: 130,
+    height: 130,
+    borderRadius: 65,
+    backgroundColor: `${colors.primary}22`,
+    bottom: 120,
+    right: -30,
+  },
+  bgCircle4: {
+    position: "absolute",
+    width: 190,
+    height: 190,
+    borderRadius: 95,
+    backgroundColor: `${colors.accent}22`,
+    bottom: 40,
+    left: -70,
+  },
+  bgCircle5: {
+    position: "absolute",
+    width: 110,
+    height: 110,
+    borderRadius: 55,
+    backgroundColor: `${colors.primary}18`,
+    top: 360,
+    right: 24,
+  },
+  bgCircle6: {
+    position: "absolute",
+    width: 140,
+    height: 140,
+    borderRadius: 70,
+    backgroundColor: `${colors.accent}24`,
+    bottom: 220,
+    right: 60,
   },
   content: {
     flexGrow: 1,
     justifyContent: "center",
     paddingHorizontal: 20,
     paddingBottom: 40,
+    paddingTop: 24,
+  },
+  contentLarge: {
+    alignSelf: "center",
+    width: "100%",
+    maxWidth: 1100,
+    paddingHorizontal: 32,
+  },
+  formCard: {
+    width: "100%",
+  },
+  formCardLarge: {
+    maxWidth: 520,
+    width: "100%",
+    alignSelf: "center",
+    backgroundColor: "rgba(255,255,255,0.9)",
+    borderRadius: 28,
+    paddingHorizontal: 28,
+    paddingVertical: 30,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.95)",
+    shadowColor: colors.primary,
+    shadowOffset: { width: 0, height: 12 },
+    shadowOpacity: 0.16,
+    shadowRadius: 24,
+    elevation: 10,
   },
   logoContainer: {
     alignItems: "center",
@@ -310,40 +321,5 @@ const styles = StyleSheet.create({
     color: "#fff",
     fontSize: 18,
     fontWeight: "bold",
-  },
-  divider: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginVertical: 24,
-  },
-  dividerLine: {
-    flex: 1,
-    height: 1,
-    backgroundColor: colors.border,
-  },
-  dividerText: {
-    marginHorizontal: 16,
-    color: colors.muted,
-    fontWeight: "600",
-  },
-  googleButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "#fff",
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: 25,
-    padding: 15,
-    shadowColor: colors.dark,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 2,
-  },
-  googleButtonText: {
-    color: colors.dark,
-    fontSize: 16,
-    fontWeight: "700",
   },
 });

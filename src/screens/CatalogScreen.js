@@ -1,6 +1,5 @@
 import { useMemo, useState } from "react";
 import {
-  Alert,
   FlatList,
   Image,
   Pressable,
@@ -20,6 +19,7 @@ import { colors } from "../theme/colors";
 import { SectionHeader } from "../components/SectionHeader";
 import { StatusPill } from "../components/StatusPill";
 import { useResponsive } from "../hooks/useResponsive";
+import { Alert } from "../utils/alert";
 
 export const CatalogScreen = () => {
   const { categories, products, sellers, loading, refresh, deleteProduct } =

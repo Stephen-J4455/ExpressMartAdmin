@@ -1,6 +1,7 @@
 import { useState } from "react";
 import {
   FlatList,
+  Modal,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -278,7 +279,13 @@ export const SupportScreen = () => {
         )}
       </ScrollView>
 
-      {replyTicket ? (
+      <Modal
+        visible={!!replyTicket}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setReplyTicket(null)}
+      >
+        <Pressable style={styles.replyOverlay} onPress={() => setReplyTicket(null)} />
         <View style={styles.replyCard}>
           <Text style={styles.replyTitle}>Reply to ticket</Text>
           <ScrollView
@@ -322,7 +329,7 @@ export const SupportScreen = () => {
             </Pressable>
           </View>
         </View>
-      ) : null}
+      </Modal>
     </View>
   );
 };
@@ -521,6 +528,10 @@ const styles = StyleSheet.create({
     fontSize: 14,
     marginTop: 40,
     fontWeight: "600",
+  },
+  replyOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(0,0,0,0.35)",
   },
   replyCard: {
     position: "absolute",

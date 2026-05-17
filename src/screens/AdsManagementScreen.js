@@ -6,7 +6,6 @@ import {
   Image,
   Switch,
   RefreshControl,
-  Alert,
   StyleSheet,
   Pressable,
   Modal,
@@ -14,9 +13,9 @@ import {
   ScrollView,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { LinearGradient } from "expo-linear-gradient";
 import { supabase } from "../../supabase";
 import { colors } from "../theme/colors";
+import { Alert } from "../utils/alert";
 import { AdEditor } from "../components/AdEditor";
 import { StatCard } from "../components/StatCard";
 import { SectionHeader } from "../components/SectionHeader";
@@ -235,29 +234,6 @@ export const AdsManagementScreen = () => {
         }
         ListHeaderComponent={
           <View>
-            <LinearGradient
-              colors={[colors.gradientStart, colors.gradientEnd]}
-              style={styles.hero}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-            >
-              <View style={styles.heroHeader}>
-                <View>
-                  <Text style={styles.heroKicker}>Ads Manager</Text>
-                  <Text style={styles.heroTitle}>Campaign Pulse</Text>
-                  <Text style={styles.heroSubtitle}>
-                    Monitor and manage your store promotions.
-                  </Text>
-                </View>
-                <TouchableOpacity
-                  style={styles.addHeroButton}
-                  onPress={handleAddNew}
-                >
-                  <Ionicons name="add" size={24} color="#fff" />
-                </TouchableOpacity>
-              </View>
-            </LinearGradient>
-
             <View style={styles.statsGrid}>
               <StatCard
                 label="Total Campaigns"
@@ -305,8 +281,9 @@ export const AdsManagementScreen = () => {
       <Modal
         visible={modalVisible}
         animationType="slide"
-        presentationStyle="fullScreen"
-        statusBarTranslucent={false}
+        presentationStyle="overFullScreen"
+        statusBarTranslucent
+        navigationBarTranslucent
         onRequestClose={() => setModalVisible(false)}
       >
         <AdEditor
@@ -325,52 +302,11 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.light,
   },
-  hero: {
-    borderRadius: 20,
-    padding: 24,
-    marginBottom: 20,
-    marginTop: 40,
-    shadowColor: colors.dark,
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.15,
-    shadowRadius: 16,
-    elevation: 8,
-  },
-  heroHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-  },
-  heroKicker: {
-    color: "rgba(255,255,255,0.8)",
-    textTransform: "uppercase",
-    letterSpacing: 1,
-    fontSize: 12,
-    fontWeight: "700",
-  },
-  heroTitle: {
-    color: "#fff",
-    fontSize: 26,
-    fontWeight: "800",
-    marginTop: 4,
-  },
-  heroSubtitle: {
-    color: "rgba(255,255,255,0.9)",
-    marginTop: 8,
-    fontSize: 14,
-  },
-  addHeroButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: "rgba(255,255,255,0.2)",
-    alignItems: "center",
-    justifyContent: "center",
-  },
   statsGrid: {
     flexDirection: "row",
     flexWrap: "wrap",
     gap: 12,
+    marginTop: 40,
     marginBottom: 24,
   },
   listContent: {
